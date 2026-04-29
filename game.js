@@ -1193,35 +1193,36 @@ function drawBeams() {
 function drawEnemyBullets() {
   ctx.save();
   for (const b of enemyBullets) {
+    ctx.shadowColor = b.color;
+    ctx.shadowBlur = 12;
     ctx.fillStyle = b.color;
+    if (spriteSheet.complete && spriteSheet.naturalWidth) {
+      const s = b.color === "#62eaff" || b.color === "#8ff6ff" ? sprites.bulletCyan : sprites.bulletPink;
+      const a = Math.atan2(b.vy, b.vx) + Math.PI / 2;
+      drawSprite(s, b.x, b.y, b.r * 4.7, b.r * 8.2, a, true);
+      continue;
+    }
     if (b.kind === "needle") {
       const a = Math.atan2(b.vy, b.vx);
       ctx.save();
       ctx.translate(b.x, b.y);
       ctx.rotate(a);
-      ctx.fillStyle = b.color;
       ctx.beginPath();
       ctx.ellipse(0, 0, b.r * 2.6, b.r, 0, 0, TAU);
       ctx.fill();
-      ctx.globalAlpha = 0.42;
-      ctx.fillStyle = "#ffffff";
-      ctx.fillRect(-b.r * 1.1, -1, b.r * 1.7, 2);
+      ctx.fillStyle = "#fff3b6";
+      ctx.globalAlpha = 0.55;
+      ctx.fillRect(-b.r * 1.2, -1, b.r * 1.9, 2);
       ctx.restore();
       ctx.globalAlpha = 1;
     } else if (b.kind === "petal") {
       ctx.save();
       ctx.translate(b.x, b.y);
       ctx.rotate(b.age * 4);
-      ctx.fillStyle = b.color;
       ctx.beginPath();
       ctx.ellipse(0, 0, b.r * 1.1, b.r * 2.1, 0, 0, TAU);
       ctx.fill();
-      ctx.globalAlpha = 0.28;
-      ctx.strokeStyle = "#ffffff";
-      ctx.lineWidth = 1;
-      ctx.stroke();
       ctx.restore();
-      ctx.globalAlpha = 1;
     } else {
       ctx.beginPath();
       ctx.arc(b.x, b.y, b.r, 0, TAU);
