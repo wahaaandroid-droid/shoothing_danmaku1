@@ -1,0 +1,7 @@
+.chrome-profile/
+.chrome-profile*/
+.chrome-*/
+.edge-profile/
+.edge-profile*/
+.edge-*/
+verification*.png
