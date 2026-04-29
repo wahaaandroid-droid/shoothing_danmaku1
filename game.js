@@ -6,6 +6,9 @@ const startButton = document.getElementById("startButton");
 const W = canvas.width;
 const H = canvas.height;
 const TAU = Math.PI * 2;
+const PLAYER_START_LIVES = 6;
+const IS_MOBILE_BROWSER = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+const MAX_ENEMY_BULLETS = IS_MOBILE_BROWSER ? 380 : 560;
 const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
 const rand = (min, max) => min + Math.random() * (max - min);
 const dist2 = (a, b) => {
@@ -71,14 +74,35 @@ const bgm = {
 };
 let currentBgm = null;
 let audioContext = null;
+let bgmUnlocked = false;
 for (const track of Object.values(bgm)) {
   track.loop = true;
   track.volume = 0.58;
+  track.preload = "auto";
 }
 
 function ensureAudio() {
   if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
   if (audioContext.state === "suspended") audioContext.resume();
+  unlockBgm();
+}
+
+function unlockBgm() {
+  if (bgmUnlocked) return;
+  bgmUnlocked = true;
+  const track = bgm.boss;
+  const originalMuted = track.muted;
+  track.muted = true;
+  track.load();
+  track.play()
+    .then(() => {
+      track.pause();
+      track.currentTime = 0;
+      track.muted = originalMuted;
+    })
+    .catch(() => {
+      track.muted = originalMuted;
+    });
 }
 
 function playSfx(type, volume = 0.35) {
@@ -141,7 +165,7 @@ const player = {
   x: W / 2,
   y: H - 120,
   r: 6,
-  lives: 3,
+  lives: PLAYER_START_LIVES,
   bombs: 2,
   power: 5,
   invuln: 1.6,
@@ -167,6 +191,7 @@ const boss = {
 function playBgm(name) {
   const next = bgm[name];
   if (!next || currentBgm === next) return;
+  next.muted = false;
   if (currentBgm) {
     currentBgm.pause();
     currentBgm.currentTime = 0;
@@ -200,7 +225,7 @@ function resetGame() {
   player.y = H - 120;
   player.targetX = player.x;
   player.targetY = player.y;
-  player.lives = 3;
+  player.lives = PLAYER_START_LIVES;
   player.bombs = 2;
   player.power = 5;
   player.invuln = 2;
@@ -470,6 +495,7 @@ function helixStorm() {
 }
 
 function spawnBullet(x, y, angle, speed, color, r, kind) {
+  if (enemyBullets.length >= MAX_ENEMY_BULLETS) return;
   enemyBullets.push({
     x,
     y,
@@ -1167,36 +1193,35 @@ function drawBeams() {
 function drawEnemyBullets() {
   ctx.save();
   for (const b of enemyBullets) {
-    ctx.shadowColor = b.color;
-    ctx.shadowBlur = 12;
     ctx.fillStyle = b.color;
-    if (spriteSheet.complete && spriteSheet.naturalWidth) {
-      const s = b.color === "#62eaff" || b.color === "#8ff6ff" ? sprites.bulletCyan : sprites.bulletPink;
-      const a = Math.atan2(b.vy, b.vx) + Math.PI / 2;
-      drawSprite(s, b.x, b.y, b.r * 4.7, b.r * 8.2, a, true);
-      continue;
-    }
     if (b.kind === "needle") {
       const a = Math.atan2(b.vy, b.vx);
       ctx.save();
       ctx.translate(b.x, b.y);
       ctx.rotate(a);
+      ctx.fillStyle = b.color;
       ctx.beginPath();
       ctx.ellipse(0, 0, b.r * 2.6, b.r, 0, 0, TAU);
       ctx.fill();
-      ctx.fillStyle = "#fff3b6";
-      ctx.globalAlpha = 0.55;
-      ctx.fillRect(-b.r * 1.2, -1, b.r * 1.9, 2);
+      ctx.globalAlpha = 0.42;
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(-b.r * 1.1, -1, b.r * 1.7, 2);
       ctx.restore();
       ctx.globalAlpha = 1;
     } else if (b.kind === "petal") {
       ctx.save();
       ctx.translate(b.x, b.y);
       ctx.rotate(b.age * 4);
+      ctx.fillStyle = b.color;
       ctx.beginPath();
       ctx.ellipse(0, 0, b.r * 1.1, b.r * 2.1, 0, 0, TAU);
       ctx.fill();
+      ctx.globalAlpha = 0.28;
+      ctx.strokeStyle = "#ffffff";
+      ctx.lineWidth = 1;
+      ctx.stroke();
       ctx.restore();
+      ctx.globalAlpha = 1;
     } else {
       ctx.beginPath();
       ctx.arc(b.x, b.y, b.r, 0, TAU);
@@ -1395,7 +1420,7 @@ function drawSprite(s, x, y, w, h, rotation = 0, centered = false) {
 }
 
 function heartText(lives) {
-  return "♥".repeat(Math.max(0, lives)).padEnd(3, "♡");
+  return "♥".repeat(Math.max(0, lives)).padEnd(PLAYER_START_LIVES, "♡");
 }
 
 initStars();
