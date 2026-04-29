@@ -83,40 +83,46 @@ function ensureAudio() {
 
 function playSfx(type, volume = 0.35) {
   if (!audioContext) return;
-  const now = audioContext.currentTime;
-  const osc = audioContext.createOscillator();
-  const gain = audioContext.createGain();
-  const filter = audioContext.createBiquadFilter();
-  osc.connect(filter);
-  filter.connect(gain);
-  gain.connect(audioContext.destination);
-  filter.type = "lowpass";
-  filter.frequency.setValueAtTime(type === "explode" ? 900 : type === "missile" ? 1600 : 2200, now);
-  gain.gain.setValueAtTime(0.0001, now);
+  try {
+    const now = audioContext.currentTime;
+    const osc = audioContext.createOscillator();
+    const gain = audioContext.createGain();
+    const filter = audioContext.createBiquadFilter();
+    let stopAt = now + 0.09;
+    osc.connect(filter);
+    filter.connect(gain);
+    gain.connect(audioContext.destination);
+    filter.type = "lowpass";
+    filter.frequency.setValueAtTime(type === "explode" ? 900 : type === "missile" ? 1600 : 2200, now);
+    gain.gain.setValueAtTime(0.0001, now);
 
-  if (type === "explode") {
-    osc.type = "sawtooth";
-    osc.frequency.setValueAtTime(180, now);
-    osc.frequency.exponentialRampToValueAtTime(48, now + 0.28);
-    gain.gain.exponentialRampToValueAtTime(volume * 1.35, now + 0.01);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.32);
-    osc.stop(now + 0.34);
-  } else if (type === "missile") {
-    osc.type = "triangle";
-    osc.frequency.setValueAtTime(420, now);
-    osc.frequency.exponentialRampToValueAtTime(980, now + 0.1);
-    gain.gain.exponentialRampToValueAtTime(volume * 0.65, now + 0.004);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.13);
-    osc.stop(now + 0.14);
-  } else {
-    osc.type = "square";
-    osc.frequency.setValueAtTime(920, now);
-    osc.frequency.exponentialRampToValueAtTime(520, now + 0.055);
-    gain.gain.exponentialRampToValueAtTime(volume, now + 0.006);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.08);
-    osc.stop(now + 0.09);
+    if (type === "explode") {
+      osc.type = "sawtooth";
+      osc.frequency.setValueAtTime(180, now);
+      osc.frequency.exponentialRampToValueAtTime(48, now + 0.28);
+      gain.gain.exponentialRampToValueAtTime(volume * 1.35, now + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.32);
+      stopAt = now + 0.34;
+    } else if (type === "missile") {
+      osc.type = "triangle";
+      osc.frequency.setValueAtTime(420, now);
+      osc.frequency.exponentialRampToValueAtTime(980, now + 0.1);
+      gain.gain.exponentialRampToValueAtTime(volume * 0.65, now + 0.004);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.13);
+      stopAt = now + 0.14;
+    } else {
+      osc.type = "square";
+      osc.frequency.setValueAtTime(920, now);
+      osc.frequency.exponentialRampToValueAtTime(520, now + 0.055);
+      gain.gain.exponentialRampToValueAtTime(volume, now + 0.006);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.08);
+      stopAt = now + 0.09;
+    }
+    osc.start(now);
+    osc.stop(stopAt);
+  } catch {
+    // Audio failures should never interrupt gameplay.
   }
-  osc.start(now);
 }
 
 const sprites = {
