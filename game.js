@@ -68,6 +68,10 @@ const spriteSheet = new Image();
 spriteSheet.src = "assets/sprite-sheet.png";
 spriteSheet.onload = () => render();
 
+const colonySheet = new Image();
+colonySheet.src = "assets/colony-props.png";
+colonySheet.onload = () => render();
+
 const bgm = {
   stage: new Audio("BGM/BGM_Stage1_最初の警報.mp3"),
   boss: new Audio("BGM/BGM_Stage1BOSS_弾幕の門.mp3"),
@@ -159,6 +163,14 @@ const sprites = {
   bulletPink: { sx: 360, sy: 946, sw: 130, sh: 218 },
   explosion: { sx: 560, sy: 938, sw: 320, sh: 250 },
   power: { sx: 960, sy: 964, sw: 224, sh: 232 },
+};
+
+const colonySprites = {
+  platformA: { sx: 20, sy: 84, sw: 565, sh: 390 },
+  platformB: { sx: 612, sy: 86, sw: 600, sh: 390 },
+  ring: { sx: 314, sy: 526, sw: 620, sh: 298 },
+  turret: { sx: 34, sy: 744, sw: 330, sh: 438 },
+  dock: { sx: 782, sy: 890, sw: 380, sh: 260 },
 };
 
 const player = {
@@ -916,8 +928,9 @@ function drawStructures() {
     const y = lane * loop + offset;
     drawStation(-90, 110 + y, 0.72);
     drawStation(W + 90, 130 + y, -0.72);
-    drawPlatform(W - 118, 520 + y, -0.82);
-    drawPlatform(112, 600 + y, 0.82);
+    drawColonyProp(colonySprites.dock, W - 82, 510 + y, 176, 118, -0.08, true);
+    drawColonyProp(colonySprites.turret, 86, 600 + y, 132, 172, 0.06, true);
+    drawColonyProp(colonySprites.ring, W / 2, 890 + y, 250, 120, 0.03, true, 0.58);
   }
 }
 
@@ -963,6 +976,23 @@ function drawPlatform(x, y, side) {
   ctx.beginPath();
   ctx.arc(132, 18, 13, 0, TAU);
   ctx.fill();
+  ctx.restore();
+}
+
+function drawColonyProp(s, x, y, w, h, rotation = 0, centered = false, alpha = 0.9) {
+  if (!colonySheet.complete || !colonySheet.naturalWidth) {
+    drawPlatform(x, y, 1);
+    return;
+  }
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.translate(x, y);
+  ctx.rotate(rotation);
+  ctx.shadowColor = "#4fdfff";
+  ctx.shadowBlur = 8;
+  const dx = centered ? -w / 2 : 0;
+  const dy = centered ? -h / 2 : 0;
+  ctx.drawImage(colonySheet, s.sx, s.sy, s.sw, s.sh, dx, dy, w, h);
   ctx.restore();
 }
 
