@@ -38,9 +38,11 @@ const STAGE_WAVES = [
   { t: 3.8, type: "sweep", side: 1 },
   { t: 7.2, type: "v" },
   { t: 11.5, type: "ambush" },
+  { t: 13.4, type: "mid" },
   { t: 15.5, type: "sweep", side: -1 },
   { t: 19.0, type: "v" },
   { t: 23.0, type: "ambush" },
+  { t: 25.0, type: "mid" },
   { t: 27.0, type: "sweep", side: 1 },
   { t: 31.0, type: "v" },
   { t: 35.5, type: "final" },
@@ -49,9 +51,11 @@ const STAGE_WAVES = [
 const keys = new Set();
 const stars = [];
 const playerBullets = [];
+const missiles = [];
 const enemyBullets = [];
 const enemies = [];
 const explosions = [];
+const hitSparks = [];
 const pickups = [];
 const beams = [];
 const particles = [];
@@ -66,9 +70,53 @@ const bgm = {
   boss: new Audio("BGM/BGM_Stage1BOSS_弾幕の門.mp3"),
 };
 let currentBgm = null;
+let audioContext = null;
 for (const track of Object.values(bgm)) {
   track.loop = true;
   track.volume = 0.58;
+}
+
+function ensureAudio() {
+  if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioContext.state === "suspended") audioContext.resume();
+}
+
+function playSfx(type, volume = 0.35) {
+  if (!audioContext) return;
+  const now = audioContext.currentTime;
+  const osc = audioContext.createOscillator();
+  const gain = audioContext.createGain();
+  const filter = audioContext.createBiquadFilter();
+  osc.connect(filter);
+  filter.connect(gain);
+  gain.connect(audioContext.destination);
+  filter.type = "lowpass";
+  filter.frequency.setValueAtTime(type === "explode" ? 900 : type === "missile" ? 1600 : 2200, now);
+  gain.gain.setValueAtTime(0.0001, now);
+
+  if (type === "explode") {
+    osc.type = "sawtooth";
+    osc.frequency.setValueAtTime(180, now);
+    osc.frequency.exponentialRampToValueAtTime(48, now + 0.28);
+    gain.gain.exponentialRampToValueAtTime(volume * 1.35, now + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.32);
+    osc.stop(now + 0.34);
+  } else if (type === "missile") {
+    osc.type = "triangle";
+    osc.frequency.setValueAtTime(420, now);
+    osc.frequency.exponentialRampToValueAtTime(980, now + 0.1);
+    gain.gain.exponentialRampToValueAtTime(volume * 0.65, now + 0.004);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.13);
+    osc.stop(now + 0.14);
+  } else {
+    osc.type = "square";
+    osc.frequency.setValueAtTime(920, now);
+    osc.frequency.exponentialRampToValueAtTime(520, now + 0.055);
+    gain.gain.exponentialRampToValueAtTime(volume, now + 0.006);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.08);
+    osc.stop(now + 0.09);
+  }
+  osc.start(now);
 }
 
 const sprites = {
@@ -92,6 +140,7 @@ const player = {
   power: 5,
   invuln: 1.6,
   fireCooldown: 0,
+  missileCooldown: 0,
   focus: false,
   score: 8765432,
   chain: 0,
@@ -150,6 +199,7 @@ function resetGame() {
   player.power = 5;
   player.invuln = 2;
   player.fireCooldown = 0;
+  player.missileCooldown = 0;
   player.score = 8765432;
   player.chain = 0;
   player.graze = 0;
@@ -168,9 +218,11 @@ function resetGame() {
   pickupClock = 0;
   beginStage();
   playerBullets.length = 0;
+  missiles.length = 0;
   enemyBullets.length = 0;
   enemies.length = 0;
   explosions.length = 0;
+  hitSparks.length = 0;
   pickups.length = 0;
   beams.length = 0;
   particles.length = 0;
@@ -179,6 +231,7 @@ function resetGame() {
 }
 
 function startGame() {
+  ensureAudio();
   resetGame();
   running = true;
   paused = false;
@@ -202,6 +255,7 @@ function beginStage() {
   pickupClock = 0;
   enemyBullets.length = 0;
   enemies.length = 0;
+  missiles.length = 0;
   playBgm("stage");
 }
 
@@ -214,6 +268,7 @@ function beginBossPhase() {
   enemyClock = 0;
   enemyBullets.length = 0;
   enemies.length = 0;
+  missiles.length = 0;
   boss.x = W / 2;
   boss.y = -230;
   boss.hp = boss.maxHp;
@@ -227,6 +282,7 @@ function clearStage() {
   enemyBullets.length = 0;
   enemies.length = 0;
   playerBullets.length = 0;
+  missiles.length = 0;
   player.score += 250000 + stageNo * 50000;
   player.bombs = Math.min(4, player.bombs + 1);
   stopBgm();
@@ -330,6 +386,7 @@ function updatePlayer(dt) {
   player.y = clamp(player.y, 78, H - 34);
 
   player.fireCooldown -= dt;
+  player.missileCooldown -= dt;
   if (player.fireCooldown <= 0) {
     firePlayer();
     player.fireCooldown = player.focus ? 0.075 : 0.095;
@@ -345,6 +402,12 @@ function firePlayer() {
   if (player.power >= 5) {
     playerBullets.push({ x: player.x - 34, y: player.y - 8, vx: -38, vy: -730, r: 3, damage: 5 });
     playerBullets.push({ x: player.x + 34, y: player.y - 8, vx: 38, vy: -730, r: 3, damage: 5 });
+  }
+  if (player.power >= 8 && player.missileCooldown <= 0) {
+    missiles.push({ x: player.x - 28, y: player.y + 4, vx: -130, vy: -330, r: 7, damage: 28, life: 2.8, turn: 7.5, smoke: 0 });
+    missiles.push({ x: player.x + 28, y: player.y + 4, vx: 130, vy: -330, r: 7, damage: 28, life: 2.8, turn: 7.5, smoke: 0 });
+    player.missileCooldown = player.focus ? 0.42 : 0.34;
+    playSfx("missile", 0.12);
   }
   if (player.focus) {
     beams.push({ x: player.x, y: player.y - 34, life: 0.08, w: 8 });
@@ -420,7 +483,7 @@ function updateSpawns(dt) {
   } else if (phase === "boss" && enemyClock > 5.5) {
     enemyClock = 0;
     const side = Math.random() > 0.5 ? -1 : 1;
-    spawnEnemy(side < 0 ? -46 : W + 46, rand(360, 600), side * -rand(100, 150), rand(-12, 28), side, 55);
+    spawnEnemy(side < 0 ? -46 : W + 46, rand(360, 600), side * -rand(100, 150), rand(-12, 28), side, 55, "small");
   }
   if (pickupClock > 9) {
     pickupClock = 0;
@@ -436,7 +499,7 @@ function updateStageSpawns() {
   if (enemyClock > 1.15) {
     enemyClock = 0;
     const side = Math.random() > 0.5 ? -1 : 1;
-    spawnEnemy(side < 0 ? -42 : W + 42, rand(190, 760), side * -rand(120, 185), rand(-10, 42), side, 42);
+    spawnEnemy(side < 0 ? -42 : W + 42, rand(190, 760), side * -rand(120, 185), rand(-10, 42), side, 42, "small");
   }
 }
 
@@ -445,31 +508,51 @@ function spawnStageWave(wave) {
     for (let i = 0; i < 7; i++) {
       const y = 150 + i * 62;
       const x = wave.side < 0 ? -60 - i * 26 : W + 60 + i * 26;
-      spawnEnemy(x, y, wave.side * -170, 35 + i * 5, wave.side, 46);
+      spawnEnemy(x, y, wave.side * -170, 35 + i * 5, wave.side, 46, "small", i % 2 ? "enemyA" : "enemyB");
     }
   }
   if (wave.type === "v") {
     for (let i = -4; i <= 4; i++) {
-      spawnEnemy(W / 2 + i * 44, -80 - Math.abs(i) * 28, i * 32, 165 + Math.abs(i) * 10, i < 0 ? -1 : 1, 50);
+      spawnEnemy(W / 2 + i * 44, -80 - Math.abs(i) * 28, i * 32, 165 + Math.abs(i) * 10, i < 0 ? -1 : 1, 50, "small", i % 3 ? "enemyB" : "enemyA");
     }
   }
   if (wave.type === "ambush") {
     for (let i = 0; i < 8; i++) {
       const side = i % 2 ? -1 : 1;
-      spawnEnemy(side < 0 ? -52 : W + 52, 260 + i * 68, side * -210, -20, side, 38);
+      spawnEnemy(side < 0 ? -52 : W + 52, 260 + i * 68, side * -210, -20, side, 38, "small", side < 0 ? "enemyA" : "enemyB");
     }
   }
   if (wave.type === "final") {
     for (let ring = 0; ring < 2; ring++) {
       for (let i = 0; i < 9; i++) {
-        spawnEnemy(78 + i * 70, -70 - ring * 130, (i - 4) * 16, 190 + ring * 24, i < 4 ? -1 : 1, 62);
+        spawnEnemy(78 + i * 70, -70 - ring * 130, (i - 4) * 16, 190 + ring * 24, i < 4 ? -1 : 1, 62, "small", i % 2 ? "enemyA" : "enemyB");
       }
+    }
+  }
+  if (wave.type === "mid") {
+    for (let i = 0; i < 3; i++) {
+      spawnEnemy(155 + i * 205, -110 - i * 70, (i - 1) * 18, 92, i === 0 ? -1 : 1, 260, "medium", "enemyC");
     }
   }
 }
 
-function spawnEnemy(x, y, vx, vy, side, hp) {
-  enemies.push({ x, y, vx, vy, r: 18, hp, t: 0, side });
+function spawnEnemy(x, y, vx, vy, side, hp, size = "small", spriteKey = null) {
+  const isMedium = size === "medium";
+  enemies.push({
+    x,
+    y,
+    vx,
+    vy,
+    r: isMedium ? 34 : 18,
+    hp,
+    maxHp: hp,
+    t: 0,
+    side,
+    size,
+    spriteKey: spriteKey || (isMedium ? "enemyC" : side < 0 ? "enemyA" : "enemyB"),
+    hitFlash: 0,
+    fireClock: rand(0, 0.5),
+  });
 }
 
 function updateEntities(dt) {
@@ -481,6 +564,7 @@ function updateEntities(dt) {
     }
   }
   moveList(playerBullets, dt);
+  updateMissiles(dt);
   moveList(enemyBullets, dt, (b) => {
     b.age += dt;
     if (b.kind === "petal") {
@@ -490,22 +574,77 @@ function updateEntities(dt) {
   });
   for (const e of enemies) {
     e.t += dt;
+    e.hitFlash = Math.max(0, e.hitFlash - dt * 8);
+    e.fireClock += dt;
     e.x += e.vx * dt;
-    e.y += Math.sin(e.t * 5) * 42 * dt + e.vy * dt;
-    if (Math.floor(e.t * 5) % 6 === 0 && Math.random() < (phase === "stage" ? 0.045 : 0.03)) {
-      const a = Math.atan2(player.y - e.y, player.x - e.x);
-      spawnBullet(e.x, e.y, a, phase === "stage" ? 250 : 230, "#ffad45", 5, "needle");
-    }
+    e.y += Math.sin(e.t * (e.size === "medium" ? 2.4 : 5)) * (e.size === "medium" ? 18 : 42) * dt + e.vy * dt;
+    const fireInterval = e.size === "medium" ? 0.72 : 1.15;
+    if (e.fireClock > fireInterval) fireEnemy(e);
   }
   for (const p of pickups) {
     p.y += p.vy * dt;
     p.x += Math.sin(time * 3 + p.y * 0.02) * 30 * dt;
   }
   decayList(explosions, dt);
+  decayList(hitSparks, dt);
   decayList(beams, dt);
   decayList(particles, dt);
   decayList(damageTexts, dt);
   cull();
+}
+
+function updateMissiles(dt) {
+  for (const m of missiles) {
+    m.life -= dt;
+    m.smoke -= dt;
+    const target = findMissileTarget(m);
+    if (target) {
+      const speed = Math.max(360, Math.hypot(m.vx, m.vy));
+      const desired = Math.atan2(target.y - m.y, target.x - m.x);
+      const current = Math.atan2(m.vy, m.vx);
+      let diff = desired - current;
+      while (diff > Math.PI) diff -= TAU;
+      while (diff < -Math.PI) diff += TAU;
+      const next = current + clamp(diff, -m.turn * dt, m.turn * dt);
+      m.vx = Math.cos(next) * speed;
+      m.vy = Math.sin(next) * speed;
+    }
+    m.x += m.vx * dt;
+    m.y += m.vy * dt;
+    if (m.smoke <= 0) {
+      m.smoke = 0.035;
+      particles.push({ x: m.x, y: m.y, vx: rand(-25, 25) - m.vx * 0.05, vy: rand(-25, 25) - m.vy * 0.05, life: 0.38, color: "#ffad45" });
+    }
+  }
+}
+
+function findMissileTarget(m) {
+  let best = null;
+  let bestD = Infinity;
+  for (const e of enemies) {
+    const d = dist2(m, e);
+    if (d < bestD) {
+      bestD = d;
+      best = e;
+    }
+  }
+  if (phase === "boss" && boss.hp > 0) {
+    const d = dist2(m, boss);
+    if (d < bestD) best = boss;
+  }
+  return best;
+}
+
+function fireEnemy(e) {
+  e.fireClock = 0;
+  const a = Math.atan2(player.y - e.y, player.x - e.x);
+  if (e.size === "medium") {
+    for (let i = -2; i <= 2; i++) {
+      spawnBullet(e.x, e.y + 10, a + i * 0.16, 175 + Math.abs(i) * 20, i % 2 ? "#ff4fcf" : "#62eaff", 6, "petal");
+    }
+  } else {
+    spawnBullet(e.x, e.y, a, phase === "stage" ? 250 : 230, "#ffad45", 5, "needle");
+  }
 }
 
 function moveList(list, dt, extra) {
@@ -522,10 +661,12 @@ function decayList(list, dt) {
 
 function cull() {
   removeWhere(playerBullets, (b) => b.y < -60 || b.x < -80 || b.x > W + 80);
+  removeWhere(missiles, (m) => m.life <= 0 || m.y < -140 || m.x < -140 || m.x > W + 140 || m.y > H + 140);
   removeWhere(enemyBullets, (b) => b.y > H + 80 || b.y < -100 || b.x < -120 || b.x > W + 120);
   removeWhere(enemies, (e) => e.x < -90 || e.x > W + 90 || e.hp <= 0);
   removeWhere(pickups, (p) => p.y > H + 40);
   removeWhere(explosions, (e) => e.life <= 0);
+  removeWhere(hitSparks, (s) => s.life <= 0);
   removeWhere(beams, (b) => b.life <= 0);
   removeWhere(particles, (p) => p.life <= 0);
   removeWhere(damageTexts, (d) => d.life <= 0);
@@ -542,6 +683,8 @@ function collide() {
     const b = playerBullets[i];
     if (phase === "boss" && dist2(b, boss) < (boss.r + b.r) ** 2) {
       playerBullets.splice(i, 1);
+      spawnHitSpark(b.x, b.y, "#8df8ff", 0.85);
+      playSfx("hit", 0.16);
       damageBoss(b.damage);
       continue;
     }
@@ -549,11 +692,39 @@ function collide() {
       const e = enemies[j];
       if (dist2(b, e) < (e.r + b.r) ** 2) {
         e.hp -= b.damage;
+        e.hitFlash = 1;
+        spawnHitSpark(b.x, b.y, e.size === "medium" ? "#ffdf65" : "#8df8ff", e.size === "medium" ? 1.25 : 0.75);
+        playSfx("hit", e.size === "medium" ? 0.18 : 0.12);
         playerBullets.splice(i, 1);
         if (e.hp <= 0) killEnemy(e);
         break;
       }
     }
+  }
+  for (let i = missiles.length - 1; i >= 0; i--) {
+    const m = missiles[i];
+    let consumed = false;
+    if (phase === "boss" && dist2(m, boss) < (boss.r + m.r) ** 2) {
+      missiles.splice(i, 1);
+      spawnHitSpark(m.x, m.y, "#ffad45", 1.25);
+      playSfx("explode", 0.16);
+      damageBoss(m.damage);
+      continue;
+    }
+    for (let j = enemies.length - 1; j >= 0; j--) {
+      const e = enemies[j];
+      if (dist2(m, e) < (e.r + m.r) ** 2) {
+        e.hp -= m.damage;
+        e.hitFlash = 1;
+        spawnHitSpark(m.x, m.y, "#ffad45", 1.15);
+        playSfx("explode", 0.15);
+        missiles.splice(i, 1);
+        consumed = true;
+        if (e.hp <= 0) killEnemy(e);
+        break;
+      }
+    }
+    if (consumed) continue;
   }
   for (const b of enemyBullets) {
     const d = Math.sqrt(dist2(b, player));
@@ -585,7 +756,7 @@ function damageBoss(amount) {
   boss.hp = Math.max(0, boss.hp - amount);
   player.score += amount * 23;
   player.chain++;
-  if (Math.random() < 0.14) particles.push({ x: boss.x + rand(-42, 42), y: boss.y + rand(-38, 38), vx: rand(-80, 80), vy: rand(-40, 80), life: 0.34, color: "#ffdf65" });
+  if (Math.random() < 0.24) spawnHitSpark(boss.x + rand(-42, 42), boss.y + rand(-38, 38), "#ffdf65", 0.9);
   if (boss.hp <= 0) {
     player.score += 100000;
     clearStage();
@@ -593,10 +764,20 @@ function damageBoss(amount) {
 }
 
 function killEnemy(e) {
-  player.score += 8200;
-  player.chain += 4;
-  massiveExplosion(e.x, e.y, 0.5);
+  player.score += e.size === "medium" ? 26000 : 8200;
+  player.chain += e.size === "medium" ? 9 : 4;
+  massiveExplosion(e.x, e.y, e.size === "medium" ? 0.95 : 0.5);
+  playSfx("explode", e.size === "medium" ? 0.3 : 0.22);
   if (Math.random() < 0.35) pickups.push({ x: e.x, y: e.y, vy: 105, r: 9, type: "power" });
+}
+
+function spawnHitSpark(x, y, color = "#8df8ff", scale = 1) {
+  hitSparks.push({ x, y, life: 0.18 * scale, max: 0.18 * scale, scale, color });
+  for (let i = 0; i < 6 * scale; i++) {
+    const a = rand(0, TAU);
+    const s = rand(35, 150) * scale;
+    particles.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: rand(0.16, 0.34), color });
+  }
 }
 
 function hitPlayer() {
@@ -606,6 +787,7 @@ function hitPlayer() {
   shake = 14;
   flash = 0.4;
   massiveExplosion(player.x, player.y, 0.7);
+  playSfx("explode", 0.28);
   enemyBullets.length = Math.floor(enemyBullets.length * 0.42);
   if (player.lives <= 0) {
     running = false;
@@ -623,6 +805,7 @@ function useBomb() {
   player.invuln = 1.4;
   flash = 0.8;
   shake = 18;
+  playSfx("explode", 0.34);
   const removed = enemyBullets.splice(0, enemyBullets.length);
   for (let i = 0; i < removed.length; i += 5) {
     particles.push({ x: removed[i].x, y: removed[i].y, vx: rand(-150, 150), vy: rand(-180, 80), life: rand(0.35, 0.8), color: removed[i].color });
@@ -819,11 +1002,25 @@ function drawWingSpike(x, y, a, color) {
 function drawEnemies() {
   for (const e of enemies) {
     if (spriteSheet.complete && spriteSheet.naturalWidth) {
-      const s = e.side < 0 ? sprites.enemyA : (e.t % 2 > 1 ? sprites.enemyB : sprites.enemyC);
+      const s = sprites[e.spriteKey] || sprites.enemyA;
+      const w = e.size === "medium" ? 128 : 86;
+      const h = e.size === "medium" ? 102 : 72;
       ctx.save();
       ctx.translate(e.x, e.y);
       ctx.scale(e.side < 0 ? -1 : 1, 1);
-      drawSprite(s, 0, 0, 86, 72, Math.sin(e.t * 5) * 0.1, true);
+      drawSprite(s, 0, 0, w, h, Math.sin(e.t * 5) * 0.08, true);
+      if (e.hitFlash > 0) {
+        ctx.globalCompositeOperation = "screen";
+        ctx.globalAlpha = e.hitFlash * 0.72;
+        ctx.fillStyle = "#ffffff";
+        ctx.beginPath();
+        ctx.ellipse(0, 0, w * 0.42, h * 0.36, 0, 0, TAU);
+        ctx.fill();
+      }
+      if (e.size === "medium") {
+        ctx.globalCompositeOperation = "source-over";
+        drawBar(-48, h * 0.5 + 8, 96, 6, e.hp / e.maxHp, "#ff713d", "#7df4ff");
+      }
       ctx.restore();
       continue;
     }
@@ -912,6 +1109,33 @@ function drawPlayerBullets() {
     ctx.fillRect(b.x - 2, b.y - 14, 4, 22);
     ctx.fillStyle = "#3aa5ff";
     ctx.fillRect(b.x - 1, b.y - 20, 2, 12);
+  }
+  ctx.restore();
+
+  ctx.save();
+  for (const m of missiles) {
+    const a = Math.atan2(m.vy, m.vx) + Math.PI / 2;
+    ctx.translate(m.x, m.y);
+    ctx.rotate(a);
+    ctx.shadowColor = "#ffad45";
+    ctx.shadowBlur = 18;
+    ctx.fillStyle = "#f7fbff";
+    ctx.beginPath();
+    ctx.moveTo(0, -14);
+    ctx.lineTo(7, 8);
+    ctx.lineTo(0, 4);
+    ctx.lineTo(-7, 8);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = "#ff7b2e";
+    ctx.beginPath();
+    ctx.moveTo(0, 9);
+    ctx.lineTo(6, 18);
+    ctx.lineTo(0, 14);
+    ctx.lineTo(-6, 18);
+    ctx.closePath();
+    ctx.fill();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
   }
   ctx.restore();
 }
@@ -1014,6 +1238,29 @@ function drawPickups() {
 }
 
 function drawEffects() {
+  for (const s of hitSparks) {
+    const k = 1 - s.life / s.max;
+    ctx.save();
+    ctx.translate(s.x, s.y);
+    ctx.globalAlpha = 1 - k;
+    ctx.shadowColor = s.color;
+    ctx.shadowBlur = 18;
+    ctx.strokeStyle = s.color;
+    ctx.lineWidth = 3 * s.scale;
+    for (let i = 0; i < 5; i++) {
+      const a = i * TAU / 5 + k * 2.4;
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(a) * 5 * s.scale, Math.sin(a) * 5 * s.scale);
+      ctx.lineTo(Math.cos(a) * (22 + k * 22) * s.scale, Math.sin(a) * (22 + k * 22) * s.scale);
+      ctx.stroke();
+    }
+    ctx.fillStyle = "#ffffff";
+    ctx.beginPath();
+    ctx.arc(0, 0, (8 + k * 10) * s.scale, 0, TAU);
+    ctx.fill();
+    ctx.restore();
+  }
+  ctx.globalAlpha = 1;
   for (const p of particles) {
     ctx.globalAlpha = clamp(p.life * 2, 0, 1);
     ctx.fillStyle = p.color;
@@ -1160,7 +1407,8 @@ if (new URLSearchParams(location.search).has("demo")) {
     beginBossPhase();
     clearStage();
   }
-  const frames = params.get("demo") === "stage" || params.get("demo") === "1" ? 150 : 90;
+  if (params.get("demo") === "mid") player.power = 8;
+  const frames = params.get("demo") === "mid" ? 900 : params.get("demo") === "stage" || params.get("demo") === "1" ? 150 : 90;
   for (let i = 0; i < frames; i++) update(1 / 60);
   last = performance.now();
   requestAnimationFrame(loop);
