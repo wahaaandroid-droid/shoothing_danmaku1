@@ -72,9 +72,23 @@ const colonySheet = new Image();
 colonySheet.src = "assets/colony-props.png";
 colonySheet.onload = () => render();
 
+const stageSpriteSheet = new Image();
+stageSpriteSheet.src = "assets/stage-sprites.png";
+stageSpriteSheet.onload = () => render();
+
+const stageBackgroundSheet = new Image();
+stageBackgroundSheet.src = "assets/stage-backgrounds.png";
+stageBackgroundSheet.onload = () => render();
+
 const bgm = {
-  stage: new Audio("BGM/BGM_Stage1_最初の警報.mp3"),
-  boss: new Audio("BGM/BGM_Stage1BOSS_弾幕の門.mp3"),
+  stage1: new Audio("BGM/BGM_Stage1_最初の警報.mp3"),
+  boss1: new Audio("BGM/BGM_Stage1BOSS_弾幕の門.mp3"),
+  stage2: new Audio("BGM/BGM_Stage2_雷光の回廊.mp3"),
+  boss2: new Audio("BGM/BGM_Stage2BOSS_終幕の砲火.mp3"),
+  stage3: new Audio("BGM/BGM_Stage3_弾幕の回廊.mp3"),
+  boss3: new Audio("BGM/BGM_Stage3BOSS_鋼の中枢.mp3"),
+  stage4: new Audio("BGM/BGM_Stage4_雷鳴の第四幕.mp3"),
+  boss4: new Audio("BGM/BGM_Stage4BOSS_鋼牙の咆哮.mp3"),
 };
 let currentBgm = null;
 let audioContext = null;
@@ -94,19 +108,21 @@ function ensureAudio() {
 function unlockBgm() {
   if (bgmUnlocked) return;
   bgmUnlocked = true;
-  const track = bgm.boss;
-  const originalMuted = track.muted;
-  track.muted = true;
-  track.load();
-  track.play()
-    .then(() => {
-      track.pause();
-      track.currentTime = 0;
-      track.muted = originalMuted;
-    })
-    .catch(() => {
-      track.muted = originalMuted;
-    });
+  for (const key of Object.keys(bgm).filter((name) => name !== "stage1")) {
+    const track = bgm[key];
+    const originalMuted = track.muted;
+    track.muted = true;
+    track.load();
+    track.play()
+      .then(() => {
+        track.pause();
+        track.currentTime = 0;
+        track.muted = originalMuted;
+      })
+      .catch(() => {
+        track.muted = originalMuted;
+      });
+  }
 }
 
 function playSfx(type, volume = 0.35) {
@@ -173,6 +189,97 @@ const colonySprites = {
   dock: { sx: 782, sy: 890, sw: 380, sh: 260 },
 };
 
+const stageAssetSprites = {
+  s2Small: { sx: 45, sy: 160, sw: 175, sh: 188 },
+  s2Medium: { sx: 332, sy: 86, sw: 287, sh: 322 },
+  s2Boss: { sx: 698, sy: 17, sw: 526, sh: 405 },
+  s3Small: { sx: 50, sy: 542, sw: 162, sh: 189 },
+  s3Medium: { sx: 310, sy: 494, sw: 316, sh: 287 },
+  s3Boss: { sx: 719, sy: 426, sw: 478, sh: 399 },
+  s4Small: { sx: 48, sy: 931, sw: 164, sh: 181 },
+  s4Medium: { sx: 307, sy: 879, sw: 324, sh: 265 },
+  s4Boss: { sx: 653, sy: 813, sw: 594, sh: 421 },
+};
+
+const STAGES = [
+  {
+    no: 1,
+    title: "ABYSSAL DEEP",
+    stageBgm: "stage1",
+    bossBgm: "boss1",
+    bg: { sx: 0, sy: 0 },
+    smallSprite: "enemyA",
+    mediumSprite: "enemyC",
+    bossSprite: "boss",
+    bossW: 380,
+    bossH: 346,
+    bossR: 68,
+    bossHp: 9000,
+    enemyHp: 1,
+    enemySpeed: 1,
+    fireRate: 1,
+    bossInterval: 0.18,
+    bulletSpeed: 1,
+  },
+  {
+    no: 2,
+    title: "LIGHTNING CORRIDOR",
+    stageBgm: "stage2",
+    bossBgm: "boss2",
+    bg: { sx: 627, sy: 0 },
+    smallSprite: "s2Small",
+    mediumSprite: "s2Medium",
+    bossSprite: "s2Boss",
+    bossW: 420,
+    bossH: 324,
+    bossR: 76,
+    bossHp: 11800,
+    enemyHp: 1.18,
+    enemySpeed: 1.08,
+    fireRate: 0.9,
+    bossInterval: 0.16,
+    bulletSpeed: 1.08,
+  },
+  {
+    no: 3,
+    title: "CRIMSON CORRIDOR",
+    stageBgm: "stage3",
+    bossBgm: "boss3",
+    bg: { sx: 0, sy: 627 },
+    smallSprite: "s3Small",
+    mediumSprite: "s3Medium",
+    bossSprite: "s3Boss",
+    bossW: 430,
+    bossH: 360,
+    bossR: 84,
+    bossHp: 14800,
+    enemyHp: 1.36,
+    enemySpeed: 1.15,
+    fireRate: 0.78,
+    bossInterval: 0.145,
+    bulletSpeed: 1.16,
+  },
+  {
+    no: 4,
+    title: "STEEL FANG FORTRESS",
+    stageBgm: "stage4",
+    bossBgm: "boss4",
+    bg: { sx: 627, sy: 627 },
+    smallSprite: "s4Small",
+    mediumSprite: "s4Medium",
+    bossSprite: "s4Boss",
+    bossW: 520,
+    bossH: 368,
+    bossR: 104,
+    bossHp: 19000,
+    enemyHp: 1.62,
+    enemySpeed: 1.24,
+    fireRate: 0.66,
+    bossInterval: 0.125,
+    bulletSpeed: 1.25,
+  },
+];
+
 const player = {
   x: W / 2,
   y: H - 120,
@@ -199,6 +306,10 @@ const boss = {
   maxHp: 9000,
   corePulse: 0,
 };
+
+function currentStage() {
+  return STAGES[Math.min(stageNo, STAGES.length) - 1];
+}
 
 function playBgm(name) {
   const next = bgm[name];
@@ -246,12 +357,13 @@ function resetGame() {
   player.score = 8765432;
   player.chain = 0;
   player.graze = 0;
+  stageNo = 1;
   boss.x = W / 2;
   boss.y = -260;
-  boss.maxHp = 9000;
+  boss.maxHp = currentStage().bossHp;
   boss.hp = boss.maxHp;
+  boss.r = currentStage().bossR;
   boss.corePulse = 0;
-  stageNo = 1;
   time = 0;
   shake = 0;
   flash = 0;
@@ -278,13 +390,14 @@ function startGame() {
   resetGame();
   running = true;
   paused = false;
-  playBgm("stage");
+  playBgm(currentStage().stageBgm);
   overlay.classList.add("hidden");
   last = performance.now();
   requestAnimationFrame(loop);
 }
 
 function beginStage() {
+  const def = currentStage();
   phase = "stage";
   phaseTimer = 0;
   phaseBanner = 2.2;
@@ -292,17 +405,20 @@ function beginStage() {
   stageScroll = 0;
   boss.x = W / 2;
   boss.y = -260;
+  boss.maxHp = def.bossHp;
   boss.hp = boss.maxHp;
+  boss.r = def.bossR;
   bulletClock = 0;
   enemyClock = 0;
   pickupClock = 0;
   enemyBullets.length = 0;
   enemies.length = 0;
   missiles.length = 0;
-  playBgm("stage");
+  playBgm(def.stageBgm);
 }
 
 function beginBossPhase() {
+  const def = currentStage();
   phase = "boss";
   phaseTimer = 0;
   phaseBanner = 2.4;
@@ -314,8 +430,10 @@ function beginBossPhase() {
   missiles.length = 0;
   boss.x = W / 2;
   boss.y = -230;
+  boss.maxHp = def.bossHp;
   boss.hp = boss.maxHp;
-  playBgm("boss");
+  boss.r = def.bossR;
+  playBgm(def.bossBgm);
 }
 
 function clearStage() {
@@ -333,8 +451,16 @@ function clearStage() {
 }
 
 function advanceStage() {
+  if (stageNo >= STAGES.length) {
+    running = false;
+    overlay.querySelector("h1").textContent = "ALL CLEAR";
+    overlay.querySelector("p").textContent = `SCORE ${formatScore(player.score)}`;
+    startButton.textContent = "RESTART";
+    overlay.classList.remove("hidden");
+    return;
+  }
   stageNo++;
-  boss.maxHp = 9000 + (stageNo - 1) * 2200;
+  boss.maxHp = currentStage().bossHp;
   player.invuln = 2.2;
   player.chain = 0;
   beginStage();
@@ -458,10 +584,11 @@ function firePlayer() {
 }
 
 function updateBoss(dt) {
+  const def = currentStage();
   boss.x = W / 2 + Math.sin(time * 0.9) * 76 + Math.sin(time * 1.7) * 16;
   const targetY = 224 + Math.sin(time * 1.1) * 15;
   boss.y += (targetY - boss.y) * Math.min(1, dt * 2.5);
-  if (bulletClock > 0.18) {
+  if (bulletClock > def.bossInterval) {
     bulletClock = 0;
     const phase = Math.floor((bossPhaseClock / 7) % 4);
     if (phase === 0) spiralBurst();
@@ -472,17 +599,19 @@ function updateBoss(dt) {
 }
 
 function spiralBurst() {
-  const base = time * 3.8;
-  for (let i = 0; i < 22; i++) {
-    const a = base + (i / 22) * TAU;
+  const count = 20 + currentStage().no * 2;
+  const base = time * (3.6 + currentStage().no * 0.18);
+  for (let i = 0; i < count; i++) {
+    const a = base + (i / count) * TAU;
     spawnBullet(boss.x, boss.y + 18, a, 158 + (i % 2) * 38, "#ff7a30", 7, "needle");
     spawnBullet(boss.x, boss.y + 18, -a + time, 126, "#ff35cf", 6, "orb");
   }
 }
 
 function flowerBurst() {
-  for (let i = 0; i < 34; i++) {
-    const a = (i / 34) * TAU + Math.sin(time * 2) * 0.6;
+  const count = 30 + currentStage().no * 4;
+  for (let i = 0; i < count; i++) {
+    const a = (i / count) * TAU + Math.sin(time * 2) * 0.6;
     const speed = 105 + 90 * Math.sin(i * 1.7 + time) ** 2;
     spawnBullet(boss.x, boss.y, a, speed, i % 3 ? "#ff4fcf" : "#62eaff", 6, "petal");
   }
@@ -490,7 +619,8 @@ function flowerBurst() {
 
 function aimedFans() {
   const aim = Math.atan2(player.y - boss.y, player.x - boss.x);
-  for (let fan = -2; fan <= 2; fan++) {
+  const fanWidth = currentStage().no >= 3 ? 3 : 2;
+  for (let fan = -fanWidth; fan <= fanWidth; fan++) {
     for (let i = -3; i <= 3; i++) {
       spawnBullet(boss.x + fan * 17, boss.y + 34, aim + i * 0.11 + fan * 0.03, 205 + Math.abs(i) * 18, fan % 2 ? "#ff4d7e" : "#8ff6ff", 6, "needle");
     }
@@ -498,8 +628,9 @@ function aimedFans() {
 }
 
 function helixStorm() {
-  for (let arm = 0; arm < 4; arm++) {
-    const a = time * 4.2 + arm * Math.PI / 2;
+  const arms = currentStage().no >= 4 ? 5 : 4;
+  for (let arm = 0; arm < arms; arm++) {
+    const a = time * 4.2 + arm * TAU / arms;
     for (let i = 0; i < 6; i++) {
       spawnBullet(boss.x, boss.y, a + i * 0.12, 128 + i * 24, arm % 2 ? "#ad5cff" : "#ff8642", 5, "orb");
     }
@@ -508,11 +639,12 @@ function helixStorm() {
 
 function spawnBullet(x, y, angle, speed, color, r, kind) {
   if (enemyBullets.length >= MAX_ENEMY_BULLETS) return;
+  const def = currentStage();
   enemyBullets.push({
     x,
     y,
-    vx: Math.cos(angle) * speed,
-    vy: Math.sin(angle) * speed,
+    vx: Math.cos(angle) * speed * def.bulletSpeed,
+    vy: Math.sin(angle) * speed * def.bulletSpeed,
     r,
     color,
     kind,
@@ -522,12 +654,13 @@ function spawnBullet(x, y, angle, speed, color, r, kind) {
 }
 
 function updateSpawns(dt) {
+  const def = currentStage();
   if (phase === "stage") {
     updateStageSpawns();
   } else if (phase === "boss" && enemyClock > 5.5) {
     enemyClock = 0;
     const side = Math.random() > 0.5 ? -1 : 1;
-    spawnEnemy(side < 0 ? -46 : W + 46, rand(360, 600), side * -rand(100, 150), rand(-12, 28), side, 55, "small");
+    spawnEnemy(side < 0 ? -46 : W + 46, rand(360, 600), side * -rand(100, 150) * def.enemySpeed, rand(-12, 28), side, 55, "small");
   }
   if (pickupClock > 9) {
     pickupClock = 0;
@@ -536,6 +669,7 @@ function updateSpawns(dt) {
 }
 
 function updateStageSpawns() {
+  const def = currentStage();
   while (stageWaveIndex < STAGE_WAVES.length && phaseTimer >= STAGE_WAVES[stageWaveIndex].t) {
     spawnStageWave(STAGE_WAVES[stageWaveIndex]);
     stageWaveIndex++;
@@ -543,57 +677,60 @@ function updateStageSpawns() {
   if (enemyClock > 1.15) {
     enemyClock = 0;
     const side = Math.random() > 0.5 ? -1 : 1;
-    spawnEnemy(side < 0 ? -42 : W + 42, rand(190, 760), side * -rand(120, 185), rand(-10, 42), side, 42, "small");
+    spawnEnemy(side < 0 ? -42 : W + 42, rand(190, 760), side * -rand(120, 185) * def.enemySpeed, rand(-10, 42), side, 42, "small");
   }
 }
 
 function spawnStageWave(wave) {
+  const def = currentStage();
   if (wave.type === "sweep") {
     for (let i = 0; i < 7; i++) {
       const y = 150 + i * 62;
       const x = wave.side < 0 ? -60 - i * 26 : W + 60 + i * 26;
-      spawnEnemy(x, y, wave.side * -170, 35 + i * 5, wave.side, 46, "small", i % 2 ? "enemyA" : "enemyB");
+      spawnEnemy(x, y, wave.side * -170 * def.enemySpeed, (35 + i * 5) * def.enemySpeed, wave.side, 46, "small", def.smallSprite);
     }
   }
   if (wave.type === "v") {
     for (let i = -4; i <= 4; i++) {
-      spawnEnemy(W / 2 + i * 44, -80 - Math.abs(i) * 28, i * 32, 165 + Math.abs(i) * 10, i < 0 ? -1 : 1, 50, "small", i % 3 ? "enemyB" : "enemyA");
+      spawnEnemy(W / 2 + i * 44, -80 - Math.abs(i) * 28, i * 32 * def.enemySpeed, (165 + Math.abs(i) * 10) * def.enemySpeed, i < 0 ? -1 : 1, 50, "small", def.smallSprite);
     }
   }
   if (wave.type === "ambush") {
     for (let i = 0; i < 8; i++) {
       const side = i % 2 ? -1 : 1;
-      spawnEnemy(side < 0 ? -52 : W + 52, 260 + i * 68, side * -210, -20, side, 38, "small", side < 0 ? "enemyA" : "enemyB");
+      spawnEnemy(side < 0 ? -52 : W + 52, 260 + i * 68, side * -210 * def.enemySpeed, -20, side, 38, "small", def.smallSprite);
     }
   }
   if (wave.type === "final") {
     for (let ring = 0; ring < 2; ring++) {
       for (let i = 0; i < 9; i++) {
-        spawnEnemy(78 + i * 70, -70 - ring * 130, (i - 4) * 16, 190 + ring * 24, i < 4 ? -1 : 1, 62, "small", i % 2 ? "enemyA" : "enemyB");
+        spawnEnemy(78 + i * 70, -70 - ring * 130, (i - 4) * 16 * def.enemySpeed, (190 + ring * 24) * def.enemySpeed, i < 4 ? -1 : 1, 62, "small", def.smallSprite);
       }
     }
   }
   if (wave.type === "mid") {
     for (let i = 0; i < 3; i++) {
-      spawnEnemy(155 + i * 205, -110 - i * 70, (i - 1) * 18, 92, i === 0 ? -1 : 1, 260, "medium", "enemyC");
+      spawnEnemy(155 + i * 205, -110 - i * 70, (i - 1) * 18, 92 * def.enemySpeed, i === 0 ? -1 : 1, 260, "medium", def.mediumSprite);
     }
   }
 }
 
 function spawnEnemy(x, y, vx, vy, side, hp, size = "small", spriteKey = null) {
+  const def = currentStage();
   const isMedium = size === "medium";
+  const scaledHp = Math.round(hp * def.enemyHp);
   enemies.push({
     x,
     y,
     vx,
     vy,
     r: isMedium ? 34 : 18,
-    hp,
-    maxHp: hp,
+    hp: scaledHp,
+    maxHp: scaledHp,
     t: 0,
     side,
     size,
-    spriteKey: spriteKey || (isMedium ? "enemyC" : side < 0 ? "enemyA" : "enemyB"),
+    spriteKey: spriteKey || (isMedium ? def.mediumSprite : def.smallSprite),
     hitFlash: 0,
     fireClock: rand(0, 0.5),
   });
@@ -622,7 +759,7 @@ function updateEntities(dt) {
     e.fireClock += dt;
     e.x += e.vx * dt;
     e.y += Math.sin(e.t * (e.size === "medium" ? 2.4 : 5)) * (e.size === "medium" ? 18 : 42) * dt + e.vy * dt;
-    const fireInterval = e.size === "medium" ? 0.72 : 1.15;
+    const fireInterval = (e.size === "medium" ? 0.72 : 1.15) * currentStage().fireRate;
     if (e.fireClock > fireInterval) fireEnemy(e);
   }
   for (const p of pickups) {
@@ -874,7 +1011,7 @@ function render() {
   ctx.save();
   if (shake > 0) ctx.translate(rand(-shake, shake), rand(-shake, shake));
   drawBackground();
-  drawStructures();
+  if (currentStage().no === 1) drawStructures();
   if (phase === "boss") drawBoss();
   drawEnemies();
   drawPickups();
@@ -894,12 +1031,29 @@ function render() {
 }
 
 function drawBackground() {
+  const def = currentStage();
   const g = ctx.createLinearGradient(0, 0, 0, H);
   g.addColorStop(0, "#05051a");
   g.addColorStop(0.45, "#071936");
   g.addColorStop(1, "#020712");
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, W, H);
+
+  if (stageBackgroundSheet.complete && stageBackgroundSheet.naturalWidth) {
+    const loop = H;
+    const offset = phase === "stage" ? (stageScroll * 0.22) % loop : (time * 6) % loop;
+    ctx.save();
+    ctx.globalAlpha = def.no === 1 ? 0.52 : 0.74;
+    ctx.drawImage(stageBackgroundSheet, def.bg.sx, def.bg.sy, 627, 627, 0, -offset, W, H);
+    ctx.drawImage(stageBackgroundSheet, def.bg.sx, def.bg.sy, 627, 627, 0, H - offset, W, H);
+    ctx.restore();
+    const veil = ctx.createLinearGradient(0, 0, 0, H);
+    veil.addColorStop(0, "rgba(3, 5, 18, 0.34)");
+    veil.addColorStop(0.48, "rgba(0, 0, 0, 0.05)");
+    veil.addColorStop(1, "rgba(1, 5, 14, 0.55)");
+    ctx.fillStyle = veil;
+    ctx.fillRect(0, 0, W, H);
+  }
 
   ctx.save();
   ctx.translate(940, 142);
@@ -997,11 +1151,14 @@ function drawColonyProp(s, x, y, w, h, rotation = 0, centered = false, alpha = 0
 }
 
 function drawBoss() {
-  if (spriteSheet.complete && spriteSheet.naturalWidth) {
+  const def = currentStage();
+  const sprite = sprites[def.bossSprite] || stageAssetSprites[def.bossSprite];
+  const sheet = sprites[def.bossSprite] ? spriteSheet : stageSpriteSheet;
+  if (sheet.complete && sheet.naturalWidth && sprite) {
     ctx.save();
     ctx.translate(boss.x, boss.y);
     ctx.scale(1 + Math.sin(boss.corePulse * 8) * 0.025, 1 + Math.sin(boss.corePulse * 8) * 0.025);
-    drawSprite(sprites.boss, 0, 0, 380, 346, 0, true);
+    drawSpriteFrom(sheet, sprite, 0, 0, def.bossW, def.bossH, 0, true);
     ctx.restore();
     return;
   }
@@ -1063,14 +1220,15 @@ function drawWingSpike(x, y, a, color) {
 
 function drawEnemies() {
   for (const e of enemies) {
-    if (spriteSheet.complete && spriteSheet.naturalWidth) {
-      const s = sprites[e.spriteKey] || sprites.enemyA;
-      const w = e.size === "medium" ? 128 : 86;
-      const h = e.size === "medium" ? 102 : 72;
+    const sprite = sprites[e.spriteKey] || stageAssetSprites[e.spriteKey];
+    const sheet = sprites[e.spriteKey] ? spriteSheet : stageSpriteSheet;
+    if (sheet.complete && sheet.naturalWidth && sprite) {
+      const w = e.size === "medium" ? 138 : 88;
+      const h = e.size === "medium" ? 116 : 78;
       ctx.save();
       ctx.translate(e.x, e.y);
       ctx.scale(e.side < 0 ? -1 : 1, 1);
-      drawSprite(s, 0, 0, w, h, Math.sin(e.t * 5) * 0.08, true);
+      drawSpriteFrom(sheet, sprite, 0, 0, w, h, Math.sin(e.t * 5) * 0.08, true);
       if (e.hitFlash > 0) {
         ctx.globalCompositeOperation = "screen";
         ctx.globalAlpha = e.hitFlash * 0.72;
@@ -1358,6 +1516,7 @@ function drawEffects() {
 }
 
 function drawHud() {
+  const def = currentStage();
   ctx.save();
   ctx.font = "900 21px Segoe UI, sans-serif";
   ctx.fillStyle = "#d9fbff";
@@ -1368,7 +1527,7 @@ function drawHud() {
   ctx.fillText(`POWER: [${">".repeat(player.power).padEnd(8, "|")}]`, 12, H - 46);
   ctx.fillText(`BOMB: ${player.bombs}`, 12, H - 17);
   ctx.textAlign = "center";
-  ctx.fillText(phase === "boss" ? "GIGAS CORE" : `STAGE ${stageNo}`, W / 2, 26);
+  ctx.fillText(phase === "boss" ? `${def.title} CORE` : `STAGE ${stageNo}`, W / 2, 26);
   if (phase === "boss") {
     drawBar(W / 2 - 150, 36, 300, 18, boss.hp / boss.maxHp, "#f04b4d", "#79eaff");
   } else if (phase === "stage") {
@@ -1377,22 +1536,23 @@ function drawHud() {
   ctx.textAlign = "right";
   ctx.fillText(phase === "boss" ? "BOSS" : "PHASE", W - 14, 28);
   if (phase === "boss") drawBar(W - 214, 38, 200, 16, boss.hp / boss.maxHp, "#ff842f", "#77eaff");
-  ctx.fillText(phase === "stage" ? "STAGE PHASE" : phase === "boss" ? "BOSS PHASE" : "STAGE CLEAR", W - 14, 82);
+  ctx.fillText(phase === "stage" ? def.title : phase === "boss" ? "BOSS PHASE" : "STAGE CLEAR", W - 14, 82);
   ctx.fillText(`CHAIN: ${player.chain}`, W - 20, H - 18);
   ctx.restore();
 }
 
 function drawPhaseText() {
   if (phaseBanner <= 0) return;
+  const def = currentStage();
   const alpha = clamp(phaseBanner / 1.2, 0, 1);
   let title = "";
   let sub = "";
   if (phase === "stage") {
     title = `STAGE ${stageNo}`;
-    sub = "FIRST ALARM";
+    sub = def.title;
   } else if (phase === "boss") {
     title = "WARNING";
-    sub = "BULLET GATE OPEN";
+    sub = `${def.title} BOSS`;
   } else if (phase === "clear") {
     title = "STAGE CLEAR";
     sub = "PROCEEDING TO NEXT STAGE";
@@ -1441,12 +1601,16 @@ function formatScore(score) {
 }
 
 function drawSprite(s, x, y, w, h, rotation = 0, centered = false) {
+  drawSpriteFrom(spriteSheet, s, x, y, w, h, rotation, centered);
+}
+
+function drawSpriteFrom(sheet, s, x, y, w, h, rotation = 0, centered = false) {
   ctx.save();
   ctx.translate(x, y);
   ctx.rotate(rotation);
   const dx = centered ? -w / 2 : 0;
   const dy = centered ? -h / 2 : 0;
-  ctx.drawImage(spriteSheet, s.sx, s.sy, s.sw, s.sh, dx, dy, w, h);
+  ctx.drawImage(sheet, s.sx, s.sy, s.sw, s.sh, dx, dy, w, h);
   ctx.restore();
 }
 
@@ -1460,6 +1624,13 @@ render();
 if (new URLSearchParams(location.search).has("demo")) {
   const params = new URLSearchParams(location.search);
   resetGame();
+  const requestedStage = Number(params.get("stage"));
+  if (Number.isInteger(requestedStage) && requestedStage >= 1 && requestedStage <= STAGES.length) {
+    stageNo = requestedStage;
+    boss.maxHp = currentStage().bossHp;
+    boss.hp = boss.maxHp;
+    boss.r = currentStage().bossR;
+  }
   running = true;
   player.invuln = 999;
   stopBgm();
