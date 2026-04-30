@@ -13,6 +13,7 @@ const EXTRA_LIFE_INTERVAL = 1000000;
 const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
 const rand = (min, max) => min + Math.random() * (max - min);
 const dist2 = (a, b) => {
+  if (!a || !b || a.x === undefined || b.x === undefined) return Infinity;
   const dx = a.x - b.x;
   const dy = a.y - b.y;
   return dx * dx + dy * dy;
@@ -984,13 +985,14 @@ function findMissileTarget(m) {
   let best = null;
   let bestD = Infinity;
   for (const e of enemies) {
+    if (!e || e.dead || e.hp <= 0) continue;
     const d = dist2(m, e);
     if (d < bestD) {
       bestD = d;
       best = e;
     }
   }
-  if (phase === "boss" && boss.hp > 0) {
+  if (phase === "boss" && boss.visible && boss.hp > 0) {
     const d = dist2(m, boss);
     if (d < bestD) best = boss;
   }
@@ -1067,7 +1069,8 @@ function collide() {
   }
   for (let i = playerBullets.length - 1; i >= 0; i--) {
     const b = playerBullets[i];
-    if (phase === "boss" && dist2(b, boss) < (boss.r + b.r) ** 2) {
+    if (!b) continue;
+    if (phase === "boss" && boss.visible && dist2(b, boss) < (boss.r + b.r) ** 2) {
       playerBullets.splice(i, 1);
       spawnHitSpark(b.x, b.y, "#8df8ff", 0.85);
       playSfx("hit", 0.16);
@@ -1076,6 +1079,7 @@ function collide() {
     }
     for (let j = enemies.length - 1; j >= 0; j--) {
       const e = enemies[j];
+      if (!e || e.dead || e.hp <= 0) continue;
       if (dist2(b, e) < (e.r + b.r) ** 2) {
         e.hp -= b.damage;
         e.hitFlash = 1;
@@ -1089,8 +1093,9 @@ function collide() {
   }
   for (let i = missiles.length - 1; i >= 0; i--) {
     const m = missiles[i];
+    if (!m) continue;
     let consumed = false;
-    if (phase === "boss" && dist2(m, boss) < (boss.r + m.r) ** 2) {
+    if (phase === "boss" && boss.visible && dist2(m, boss) < (boss.r + m.r) ** 2) {
       missiles.splice(i, 1);
       spawnHitSpark(m.x, m.y, "#ffad45", 1.25);
       playSfx("explode", 0.16);
@@ -1099,6 +1104,7 @@ function collide() {
     }
     for (let j = enemies.length - 1; j >= 0; j--) {
       const e = enemies[j];
+      if (!e || e.dead || e.hp <= 0) continue;
       if (dist2(m, e) < (e.r + m.r) ** 2) {
         e.hp -= m.damage;
         e.hitFlash = 1;
@@ -1286,9 +1292,11 @@ function drawBackground() {
   ctx.fillRect(0, 0, W, H);
 
   if (stageBackgroundSheet.complete && stageBackgroundSheet.naturalWidth) {
+    const scroll = phase === "stage" || phase === "silence" ? (stageScroll * 0.2) % H : (time * 5) % H;
     ctx.save();
     ctx.globalAlpha = def.no === 1 ? 0.52 : 0.74;
-    ctx.drawImage(stageBackgroundSheet, def.bg.sx + 10, def.bg.sy + 10, 607, 607, 0, 0, W, H);
+    ctx.drawImage(stageBackgroundSheet, def.bg.sx + 12, def.bg.sy + 12, 603, 603, 0, -scroll - 10, W, H + 20);
+    ctx.drawImage(stageBackgroundSheet, def.bg.sx + 12, def.bg.sy + 12, 603, 603, 0, H - scroll - 18, W, H + 20);
     ctx.restore();
     const veil = ctx.createLinearGradient(0, 0, 0, H);
     veil.addColorStop(0, "rgba(3, 5, 18, 0.34)");
