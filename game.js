@@ -542,8 +542,10 @@ function clearStage() {
   bossDeathClock = 0;
   phaseBanner = 0;
   enemyBullets.length = 0;
+  enemies.length = 0;
   playerBullets.length = 0;
   missiles.length = 0;
+  player.invuln = Math.max(player.invuln, 8);
   addScore(100000);
   fadeOutBgm(6.6);
 }
@@ -646,7 +648,7 @@ function update(dt) {
   flash = Math.max(0, flash - dt * 2.8);
   player.invuln = Math.max(0, player.invuln - dt);
   boss.corePulse += dt;
-  if (phase !== "bossDeath" && phase !== "gameover" && phase !== "credits") updatePlayer(dt);
+  if (phase !== "gameover" && phase !== "credits") updatePlayer(dt);
   if (phase === "stage" && phaseTimer >= STAGE_DURATION) beginSilencePhase();
   if (phase === "silence" && phaseTimer > 4.2) beginBossPhase();
   if (phase === "boss") updateBoss(dt);
@@ -654,7 +656,7 @@ function update(dt) {
   if (phase === "credits") updateCredits(dt);
   if (phase === "stage" || phase === "boss") updateSpawns(dt);
   updateEntities(dt);
-  if (phase !== "gameover" && phase !== "credits") collide();
+  if (phase !== "bossDeath" && phase !== "gameover" && phase !== "credits") collide();
   if (phase === "gameover" && gameOverClock > 2.8) showGameOverOverlay();
   if (phase === "clear" && phaseTimer > 4.4) advanceStage();
 }
@@ -933,7 +935,7 @@ function updateEntities(dt) {
       e.vy *= 0.96;
     }
     const fireInterval = (e.size === "midboss" ? 0.34 : e.size === "carrier" ? 1.35 : e.size === "medium" ? 0.72 : 1.15) * currentStage().fireRate;
-    if (e.fireClock > fireInterval && e.x > 34 && e.x < W - 34 && e.y > 44 && e.y < H - 110) fireEnemy(e);
+    if ((phase === "stage" || phase === "boss") && e.fireClock > fireInterval && e.x > 34 && e.x < W - 34 && e.y > 44 && e.y < H - 110) fireEnemy(e);
   }
   for (const p of pickups) {
     p.magnetDelay = Math.max(0, (p.magnetDelay || 0) - dt);
