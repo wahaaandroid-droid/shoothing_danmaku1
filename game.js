@@ -9,11 +9,12 @@ const TAU = Math.PI * 2;
 const PLAYER_START_LIVES = 6;
 const IS_MOBILE_BROWSER = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 const MAX_ENEMY_BULLETS = IS_MOBILE_BROWSER ? 380 : 560;
-const EXTRA_LIFE_INTERVAL = 5000000;
+const EXTRA_LIFE_INTERVAL = 100000000;
 const HYPER_GAUGE_MAX = 1000;
 const HYPER_STOCK_MAX = 5;
 const HYPER_ITEM_DROP_Y = 130;
 const HYPER_DURATION = 12;
+const COMBO_HOLD_SECONDS = 3;
 const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
 const rand = (min, max) => min + Math.random() * (max - min);
 const dist2 = (a, b) => {
@@ -45,6 +46,7 @@ let phaseBanner = 0;
 let stageNo = 1;
 let stageWaveIndex = 0;
 let stageScroll = 0;
+let lifePickupsThisStage = 0;
 let bossDeathClock = 0;
 let gameOverClock = 0;
 let creditScroll = 0;
@@ -87,7 +89,7 @@ const STAGE_5_WAVES = [
   { t: 30.0, type: "medium" },
   { t: 34.5, type: "midboss" },
   { t: 42.0, type: "sweep", side: 1 },
-  { t: 47.0, type: "item", drop: "hyper" },
+  { t: 47.0, type: "item", drop: "hyperCharge" },
   { t: 50.5, type: "v" },
   { t: 55.5, type: "midboss2" },
   { t: 64.0, type: "ambush" },
@@ -138,6 +140,14 @@ midbossItemSheet.onload = () => render();
 const itemSheet = new Image();
 itemSheet.src = "assets/item-sprites.png";
 itemSheet.onload = () => render();
+
+const hyperChargeImage = new Image();
+hyperChargeImage.src = "assets/hyper-charge.png";
+hyperChargeImage.onload = () => render();
+
+const hyperStockImage = new Image();
+hyperStockImage.src = "assets/hyper-stock.png";
+hyperStockImage.onload = () => render();
 
 const bgm = {
   stage1: new Audio("BGM/BGM_Stage1_最初の警報.mp3"),
@@ -317,6 +327,14 @@ function playSfx(type, volume = 0.35) {
       gain.gain.exponentialRampToValueAtTime(volume * 0.7, now + 0.006);
       gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.22);
       stopAt = now + 0.24;
+    } else if (type === "pickup") {
+      osc.type = "triangle";
+      osc.frequency.setValueAtTime(980, now);
+      osc.frequency.exponentialRampToValueAtTime(1680, now + 0.08);
+      filter.frequency.exponentialRampToValueAtTime(3200, now + 0.08);
+      gain.gain.exponentialRampToValueAtTime(volume * 0.95, now + 0.004);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.16);
+      stopAt = now + 0.18;
     } else {
       osc.type = "square";
       osc.frequency.setValueAtTime(type === "hit" ? 1320 : 920, now);
@@ -558,13 +576,17 @@ function hyperRankMultiplier() {
 }
 
 function comboHoldTime() {
-  return player.hyperTime > 0 ? 1.1 + player.hyperLevel * 0.34 : 0.75;
+  return COMBO_HOLD_SECONDS;
+}
+
+function comboDecayRate() {
+  return player.hyperTime > 0 ? Math.max(0.25, 0.72 - player.hyperLevel * 0.08) : 1;
 }
 
 function addComboHits(amount = 1) {
   const boosted = player.hyperTime > 0 ? amount * (1 + player.hyperLevel) : amount;
   player.chain += boosted;
-  player.comboTimer = Math.max(player.comboTimer, comboHoldTime());
+  player.comboTimer = comboHoldTime();
 }
 
 function addHyperGauge(amount) {
@@ -621,7 +643,6 @@ function addScore(amount) {
   while (player.score >= player.nextLifeScore) {
     player.lives = Math.min(9, player.lives + 1);
     player.nextLifeScore += EXTRA_LIFE_INTERVAL;
-    pickups.push({ x: player.x, y: player.y - 46, vy: -38, r: 12, type: "life", life: 1.2 });
     spawnHitSpark(player.x, player.y - 30, "#ff6588", 1.4);
     playSfx("life", 0.24);
   }
@@ -712,6 +733,7 @@ function beginStage() {
   phaseTimer = 0;
   phaseBanner = 2.2;
   stageWaveIndex = 0;
+  lifePickupsThisStage = 0;
   stageScroll = 0;
   boss.x = W / 2;
   boss.y = -260;
@@ -809,6 +831,7 @@ function completeStageTransition() {
   boss.maxHp = currentStage().bossHp;
   player.invuln = 2.2;
   player.chain = 0;
+  player.comboTimer = 0;
   stageFade = 1;
   beginStage();
 }
@@ -911,7 +934,7 @@ function update(dt) {
   if (phase === "gameover") gameOverClock += dt;
   player.hyperTime = Math.max(0, player.hyperTime - dt);
   if (player.hyperTime <= 0) player.hyperLevel = 0;
-  player.comboTimer = Math.max(0, player.comboTimer - dt * (player.hyperTime > 0 ? 0.55 : 1));
+  player.comboTimer = Math.max(0, player.comboTimer - dt * comboDecayRate());
   if (player.comboTimer <= 0) player.chain = 0;
   bulletClock += dt;
   enemyClock += dt;
@@ -964,7 +987,8 @@ function updatePlayer(dt) {
   player.missileCooldown -= dt;
   if (player.fireCooldown <= 0) {
     firePlayer();
-    player.fireCooldown = player.laserActive ? 0.075 : 0.095;
+    const hyperRate = player.hyperTime > 0 ? 1 + player.hyperLevel * 0.12 : 1;
+    player.fireCooldown = (player.laserActive ? 0.075 : 0.095) / hyperRate;
   }
 }
 
@@ -995,18 +1019,77 @@ function firePlayer() {
 
 function updateBoss(dt) {
   const def = currentStage();
-  boss.x = W / 2 + Math.sin(time * 0.9) * 76 + Math.sin(time * 1.7) * 16;
+
+  // ── ステージ別 BOSS 移動 ──────────────────────────────────
+  if (def.no === 1) {
+    // ゆっくり左右往復（チュートリアル的、読みやすい動き）
+    boss.x = W / 2 + Math.sin(time * 0.9) * 76 + Math.sin(time * 1.7) * 16;
+  } else if (def.no === 2) {
+    // 左右端に素早く張り付く動き（カーテンとの相乗効果）
+    boss.x = W / 2 + Math.sin(time * 1.6) * 200 + Math.sin(time * 3.1) * 22;
+  } else if (def.no === 3) {
+    // 円弧を描いて回り込む（自機狙い弾との組み合わせ）
+    boss.x = W / 2 + Math.cos(time * 1.2) * 170 + Math.sin(time * 2.5) * 28;
+  } else if (def.no === 4) {
+    // 不規則な大振り移動（変容弾との混乱演出）
+    boss.x = W / 2 + Math.sin(time * 0.7) * 210 + Math.sin(time * 2.9 + 1.2) * 46;
+  } else {
+    // S5: 広域・高速移動（全方位脅威）
+    boss.x = W / 2 + Math.sin(time * 1.4) * 240 + Math.sin(time * 3.8 + 0.8) * 54;
+  }
+  boss.x = clamp(boss.x, def.bossR + 24, W - def.bossR - 24);
+
   const targetY = 224 + Math.sin(time * 1.1) * 15;
   boss.y += (targetY - boss.y) * Math.min(1, dt * 2.5);
+
+  // ── ステージ別 弾幕パターンセット ───────────────────────
   if (bulletClock > def.bossInterval) {
     bulletClock = 0;
-    const pattern = Math.floor((bossPhaseClock / 6.2) % 6);
-    if (pattern === 0) spiralBurst();
-    if (pattern === 1) flowerBurst();
-    if (pattern === 2) aimedFans();
-    if (pattern === 3) helixStorm();
-    if (pattern === 4) curtainRain();
-    if (pattern === 5) crossingLasers();
+
+    if (def.no === 1) {
+      // S1「幾何学」: 美しい秩序、隙間が見えるパターン
+      const p = Math.floor((bossPhaseClock / 6.2) % 4);
+      if (p === 0) spiralBurst();
+      if (p === 1) flowerBurst();
+      if (p === 2) curtainRain();
+      if (p === 3) s1SymmetryFan();
+
+    } else if (def.no === 2) {
+      // S2「洪水」: 量と密度による圧迫、画面を埋め尽くす
+      const p = Math.floor((bossPhaseClock / 5.4) % 4);
+      if (p === 0) s2WallSpread();
+      if (p === 1) s2RandomFlood();
+      if (p === 2) s2BurstRing();
+      if (p === 3) s2TwinCurtain();
+
+    } else if (def.no === 3) {
+      // S3「呪い」: 全弾自機狙い、動き続けることが解答
+      const p = Math.floor((bossPhaseClock / 5.8) % 4);
+      if (p === 0) s3TrackerFan();
+      if (p === 1) s3HomingSpiral();
+      if (p === 2) aimedFans();
+      if (p === 3) s3TripleTracker();
+
+    } else if (def.no === 4) {
+      // S4「変容」: 速弾と遅弾の混在、安全圏が消える
+      const p = Math.floor((bossPhaseClock / 5.2) % 5);
+      if (p === 0) helixStorm();
+      if (p === 1) s4SlowFastMix();
+      if (p === 2) s4AccelSpiral();
+      if (p === 3) s4SplitRing();
+      if (p === 4) crossingLasers();
+
+    } else {
+      // S5「侵食」: 全パターン統合＋専用、時間が経つほど苦しい
+      const p = Math.floor((bossPhaseClock / 4.6) % 7);
+      if (p === 0) spiralBurst();
+      if (p === 1) s2WallSpread();
+      if (p === 2) s3TrackerFan();
+      if (p === 3) s4SplitRing();
+      if (p === 4) crossingLasers();
+      if (p === 5) s5OmniBlast();
+      if (p === 6) s5DarkCurtain();
+    }
   }
 }
 
@@ -1044,21 +1127,28 @@ function updateCredits(dt) {
   }
 }
 
+// S1は12発の単純螺旋、S2以降で段階的に増やす
 function spiralBurst() {
-  const count = 20 + currentStage().no * 2;
-  const base = time * (3.6 + currentStage().no * 0.18);
+  const no = currentStage().no;
+  const count = 10 + no * 2; // S1:12, S2:14, S3:16, S4:18, S5:20
+  const base = time * (2.8 + no * 0.22);
   for (let i = 0; i < count; i++) {
     const a = base + (i / count) * TAU;
-    spawnBullet(boss.x, boss.y + 18, a, 158 + (i % 2) * 38, "#ff7a30", 7, "needle");
-    spawnBullet(boss.x, boss.y + 18, -a + time, 126, "#ff35cf", 6, "orb");
+    spawnBullet(boss.x, boss.y + 18, a, 140 + (i % 2) * 30, "#ff7a30", 7, "needle");
+    if (no >= 2) {
+      // S2以降だけ逆回転を追加
+      spawnBullet(boss.x, boss.y + 18, -a + time, 112, "#ff35cf", 6, "orb");
+    }
   }
 }
 
+// S1は16発の単純花弁、S2以降で密度を上げる
 function flowerBurst() {
-  const count = 30 + currentStage().no * 4;
+  const no = currentStage().no;
+  const count = 14 + no * 3; // S1:17, S2:20, S3:23, S4:26, S5:29
   for (let i = 0; i < count; i++) {
-    const a = (i / count) * TAU + Math.sin(time * 2) * 0.6;
-    const speed = 105 + 90 * Math.sin(i * 1.7 + time) ** 2;
+    const a = (i / count) * TAU + Math.sin(time * 2) * (0.2 + no * 0.08);
+    const speed = 95 + 60 * Math.sin(i * 1.7 + time) ** 2;
     spawnBullet(boss.x, boss.y, a, speed, i % 3 ? "#ff4fcf" : "#62eaff", 6, "petal");
   }
 }
@@ -1103,6 +1193,201 @@ function crossingLasers() {
   }
 }
 
+// ═══════════════════════════════════════════════
+//  S1 専用パターン
+// ═══════════════════════════════════════════════
+
+// 左右2点から対称扇: 幾何学的な美しさ、隙間が視認しやすい
+function s1SymmetryFan() {
+  const aim = Math.atan2(player.y - boss.y, player.x - boss.x);
+  for (let side = -1; side <= 1; side += 2) {
+    for (let i = -4; i <= 4; i++) {
+      spawnBullet(
+        boss.x + side * 58, boss.y + 30,
+        aim + i * 0.09,
+        155 + Math.abs(i) * 14,
+        side > 0 ? "#62eaff" : "#ff7a30",
+        6, "needle"
+      );
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════
+//  S2 専用パターン（洪水・量の暴力）
+// ═══════════════════════════════════════════════
+
+// 【変更後】角度を均等に割り当てず「意図的に2箇所の隙間」を作る
+function s2WallSpread() {
+  const count = 16; // 44→16に削減
+  const offset = time * 0.75;
+  const gapAngle1 = Math.PI / 2; // 下方向に隙間
+  const gapAngle2 = Math.PI / 2 + Math.PI; // 上方向にも隙間
+  for (let i = 0; i < count; i++) {
+    const a = (i / count) * TAU + offset;
+    // 隙間の付近(±0.25rad)は発射しない
+    const distToGap1 = Math.abs(((a - gapAngle1 + Math.PI) % TAU) - Math.PI);
+    const distToGap2 = Math.abs(((a - gapAngle2 + Math.PI) % TAU) - Math.PI);
+    if (distToGap1 < 0.25 || distToGap2 < 0.25) continue;
+    const spd = 80 + (i % 3) * 22;
+    spawnBullet(boss.x, boss.y, a, spd, i % 2 ? "#ffe66d" : "#ff8c00", 6, "orb");
+  }
+}
+
+// ランダムばらまきは少数にして「逃げ場のある密度」に
+function s2RandomFlood() {
+  const count = 12; // 28→12に削減
+  for (let i = 0; i < count; i++) {
+    const a = rand(0, TAU);
+    const spd = rand(62, 105);
+    spawnBullet(boss.x + rand(-28, 28), boss.y + rand(-14, 14), a, spd, "#ff9f45", 7, "petal");
+  }
+}
+
+// 3波→2波、各12発。隙間を揃えて「抜けるライン」を作る
+function s2BurstRing() {
+  [0, Math.PI / 12].forEach((offset, waveIdx) => { // 2波に削減
+    const count = 12; // 16→12
+    for (let i = 0; i < count; i++) {
+      const a = (i / count) * TAU + offset;
+      const spd = 160 + waveIdx * 30;
+      spawnBullet(boss.x, boss.y, a, spd, "#ffec8b", 6, "ring");
+    }
+  });
+}
+
+// 上下二重カーテン: S1カーテンの強化版、上下から挟み込む
+function s2TwinCurtain() {
+  const lanes = 11;
+  for (let i = 0; i < lanes; i++) {
+    const x = 50 + i * ((W - 100) / (lanes - 1));
+    const swayTop = Math.sin(time * 2.2 + i * 0.8) * 0.22;
+    const swayBot = Math.sin(time * 1.8 + i * 1.1) * 0.18;
+    spawnBullet(x, 0,        Math.PI / 2 + swayTop, 102, "#ff7a30", 7, "ring");
+    spawnBullet(x, H * 0.15, Math.PI / 2 + swayBot,  88, "#ff4fcf", 7, "ring");
+  }
+}
+
+// ═══════════════════════════════════════════════
+//  S3 専用パターン（自機狙い・動き続けることが解答）
+// ═══════════════════════════════════════════════
+
+// 3方向自機狙い扇: 動くほど弾がばらける
+function s3TrackerFan() {
+  const aim = Math.atan2(player.y - boss.y, player.x - boss.x);
+  const colors = ["#ff355e", "#ad5cff", "#62eaff"];
+  for (let wave = 0; wave < 3; wave++) {
+    for (let i = -2; i <= 2; i++) {
+      spawnBullet(
+        boss.x, boss.y + 26,
+        aim + i * 0.12 + wave * (TAU / 3),
+        168 + wave * 20,
+        colors[wave], 6, "needle"
+      );
+    }
+  }
+}
+
+// 自機方向の緩やか螺旋: 逃げ続けると自然に散る
+function s3HomingSpiral() {
+  const aim = Math.atan2(player.y - boss.y, player.x - boss.x);
+  const count = 14;
+  for (let i = 0; i < count; i++) {
+    const a = aim + (i / count) * TAU * 0.32 + Math.sin(time * 1.9) * 0.38;
+    spawnBullet(boss.x, boss.y, a, 95 + i * 9, "#ff4d7e", 7, "orb");
+  }
+}
+
+// 7方向挟み込み: 同じ場所に留まると詰む
+function s3TripleTracker() {
+  const aim = Math.atan2(player.y - boss.y, player.x - boss.x);
+  const offsets = [-90, -60, -30, 0, 30, 60, 90];
+  offsets.forEach(deg => {
+    const a = aim + (deg * Math.PI) / 180;
+    spawnBullet(boss.x, boss.y + 20, a, 188, "#8ff6ff", 5, "laser");
+  });
+}
+
+// ═══════════════════════════════════════════════
+//  S4 専用パターン（変容・安全圏が消える）
+// ═══════════════════════════════════════════════
+
+// 遅弾と速弾の層: 安全に見えた場所が後から塞がれる
+function s4SlowFastMix() {
+  const count = 20;
+  const base = time * 2.2;
+  for (let i = 0; i < count; i++) {
+    const a = base + (i / count) * TAU;
+    // 偶数インデックスは遅い大玉、奇数は速い針
+    if (i % 2 === 0) {
+      spawnBullet(boss.x, boss.y, a, 68, "#ad5cff", 8, "orb");
+    } else {
+      spawnBullet(boss.x, boss.y, a + 0.16, 230, "#ff4d7e", 5, "needle");
+    }
+  }
+}
+
+// 外側ほど速い螺旋: 内側（近距離）が相対的に安全
+function s4AccelSpiral() {
+  const arms = 5;
+  const base = time * 3.8;
+  for (let arm = 0; arm < arms; arm++) {
+    const aBase = base + arm * (TAU / arms);
+    for (let i = 0; i < 5; i++) {
+      const spd = 88 + i * 44;
+      spawnBullet(boss.x, boss.y, aBase + i * 0.1, spd,
+        arm % 2 ? "#ff8642" : "#62eaff", 6, "orb");
+    }
+  }
+}
+
+// 2種の弾を交互に、合計16発。速弾と遅弾の隙間で避ける
+function s4SplitRing() {
+  const count = 16; // 22発×2種=44→16発に削減
+  const offset = bossPhaseClock * 0.6;
+  for (let i = 0; i < count; i++) {
+    const a = (i / count) * TAU + offset;
+    if (i % 2 === 0) {
+      spawnBullet(boss.x, boss.y, a, 70, "#ad5cff", 8, "orb");     // 遅い大玉
+    } else {
+      spawnBullet(boss.x, boss.y, a + Math.PI / count, 200, "#ff355e", 5, "needle"); // 速い針
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════
+//  S5 専用パターン（統合・侵食）
+// ═══════════════════════════════════════════════
+
+// 18発に削減、速度差で「すり抜けレーン」を作る
+function s5OmniBlast() {
+  const count = 18; // 52→18に削減
+  const offset = time * 0.5;
+  const colors = ["#ff355e", "#ad5cff", "#ffe66d", "#62eaff"];
+  for (let i = 0; i < count; i++) {
+    const a = (i / count) * TAU + offset;
+    // 3段速度: 遅・中・速を6発ずつ。速度の違いで隙間が生まれる
+    const tier = Math.floor(i / 6);
+    const spd = [75, 140, 220][tier];
+    spawnBullet(boss.x, boss.y, a, spd, colors[i % 4], 6, tier === 2 ? "needle" : "orb");
+  }
+}
+
+// カーテンを9レーン（奇数なので中央に隙間あり）、自機狙いは3発
+function s5DarkCurtain() {
+  const lanes = 9; // 14→9。奇数にすることで中央1レーンが空く
+  for (let i = 0; i < lanes; i++) {
+    const x = 60 + i * ((W - 120) / (lanes - 1));
+    const sway = Math.sin(time * 1.6 + i * 0.9) * 0.22;
+    spawnBullet(x, boss.y + 50, Math.PI / 2 + sway, 52, i % 2 ? "#ff355e" : "#ad5cff", 8, "petal");
+  }
+  // 自機狙いは3発だけ（中央＋左右1発ずつ）
+  const aim = Math.atan2(player.y - boss.y, player.x - boss.x);
+  for (let i = -1; i <= 1; i++) {
+    spawnBullet(boss.x, boss.y + 30, aim + i * 0.18, 145, "#ffe66d", 6, "needle");
+  }
+}
+
 function spawnBullet(x, y, angle, speed, color, r, kind) {
   if (enemyBullets.length >= MAX_ENEMY_BULLETS) return;
   const def = currentStage();
@@ -1133,60 +1418,265 @@ function updateSpawns(dt) {
 
 function updateStageSpawns() {
   const def = currentStage();
+  const no = def.no;
   const waves = stageWaves();
   while (stageWaveIndex < waves.length && phaseTimer >= waves[stageWaveIndex].t) {
     spawnStageWave(waves[stageWaveIndex]);
     stageWaveIndex++;
   }
-  if (enemyClock > 1.15) {
+
+  // 案C: ステージ別 流れスポーン
+  const spawnInterval = no === 1 ? 1.15 : no === 2 ? 0.85 : no === 3 ? 0.9 : no === 4 ? 1.0 : 0.7;
+
+  if (enemyClock > spawnInterval) {
     enemyClock = 0;
-    const side = Math.random() > 0.5 ? -1 : 1;
-    spawnEnemy(side < 0 ? -42 : W + 42, rand(190, 760), side * -rand(120, 185) * def.enemySpeed, rand(-10, 42), side, 42, "small");
+
+    if (no === 1) {
+      // S1: 左右からゆっくり（現状通り）
+      const side = Math.random() > 0.5 ? -1 : 1;
+      spawnEnemy(side < 0 ? -42 : W + 42, rand(190, 760), side * -rand(120, 185) * def.enemySpeed, rand(-10, 42), side, 42, "small");
+
+    } else if (no === 2) {
+      // S2: 間隔短く数が多い、左右から高速
+      const side = Math.random() > 0.5 ? -1 : 1;
+      spawnEnemy(side < 0 ? -42 : W + 42, rand(160, 720), side * -rand(160, 230) * def.enemySpeed, rand(-10, 30), side, 42, "small");
+
+    } else if (no === 3) {
+      // S3: 左右 + 確率で上からも降ってくる
+      const r = Math.random();
+      if (r < 0.4) {
+        // 上から降下
+        spawnEnemy(rand(80, W - 80), -42, rand(-20, 20) * def.enemySpeed, rand(140, 200) * def.enemySpeed, 1, 42, "small");
+      } else {
+        const side = r < 0.7 ? -1 : 1;
+        spawnEnemy(side < 0 ? -42 : W + 42, rand(180, 700), side * -rand(130, 190) * def.enemySpeed, rand(-10, 40), side, 42, "small");
+      }
+
+    } else if (no === 4) {
+      // S4: 左右から、確率で中型が混じる
+      const side = Math.random() > 0.5 ? -1 : 1;
+      if (Math.random() < 0.22) {
+        // 22%の確率で中型
+        spawnEnemy(side < 0 ? -60 : W + 60, rand(200, 600), side * -rand(90, 130) * def.enemySpeed, rand(-5, 20), side, 260, "medium");
+      } else {
+        spawnEnemy(side < 0 ? -42 : W + 42, rand(160, 720), side * -rand(140, 200) * def.enemySpeed, rand(-10, 35), side, 42, "small");
+      }
+
+    } else {
+      // S5: 0.7秒間隔、左右と上すべての方向から
+      const r = Math.random();
+      if (r < 0.35) {
+        spawnEnemy(rand(60, W - 60), -42, rand(-30, 30) * def.enemySpeed, rand(160, 220) * def.enemySpeed, 1, 52, "small");
+      } else if (r < 0.68) {
+        spawnEnemy(-42, rand(160, 700), rand(180, 250) * def.enemySpeed, rand(-10, 30), 1, 52, "small");
+      } else {
+        spawnEnemy(W + 42, rand(160, 700), -rand(180, 250) * def.enemySpeed, rand(-10, 30), -1, 52, "small");
+      }
+    }
   }
 }
 
 function spawnStageWave(wave) {
   const def = currentStage();
-  if (wave.type === "sweep") {
-    for (let i = 0; i < 7; i++) {
-      const y = 150 + i * 62;
-      const x = wave.side < 0 ? -60 - i * 26 : W + 60 + i * 26;
-      spawnEnemy(x, y, wave.side * -170 * def.enemySpeed, (35 + i * 5) * def.enemySpeed, wave.side, 46, "small", def.smallSprite);
-    }
-  }
-  if (wave.type === "v") {
-    for (let i = -4; i <= 4; i++) {
-      spawnEnemy(W / 2 + i * 44, -80 - Math.abs(i) * 28, i * 32 * def.enemySpeed, (165 + Math.abs(i) * 10) * def.enemySpeed, i < 0 ? -1 : 1, 50, "small", def.smallSprite);
-    }
-  }
-  if (wave.type === "ambush") {
-    for (let i = 0; i < 8; i++) {
-      const side = i % 2 ? -1 : 1;
-      spawnEnemy(side < 0 ? -52 : W + 52, 260 + i * 68, side * -210 * def.enemySpeed, -20, side, 38, "small", def.smallSprite);
-    }
-  }
-  if (wave.type === "final") {
-    for (let ring = 0; ring < 2; ring++) {
-      for (let i = 0; i < 9; i++) {
-        spawnEnemy(78 + i * 70, -70 - ring * 130, (i - 4) * 16 * def.enemySpeed, (190 + ring * 24) * def.enemySpeed, i < 4 ? -1 : 1, 62, "small", def.smallSprite);
-      }
-    }
-  }
-  if (wave.type === "medium") {
-    for (let i = 0; i < 3; i++) {
-      spawnEnemy(155 + i * 205, -110 - i * 70, (i - 1) * 18, 92 * def.enemySpeed, i === 0 ? -1 : 1, 260, "medium", def.mediumSprite);
-    }
-  }
+  const no = def.no;
+
+  // ── item / midboss / midboss2 は全ステージ共通（変更なし） ──
   if (wave.type === "midboss") {
     spawnEnemy(W / 2, -150, 0, 68 * def.enemySpeed, 1, 1750, "midboss", def.midbossSprite);
+    return;
   }
   if (wave.type === "midboss2") {
     spawnEnemy(W / 2, -160, 0, 74 * def.enemySpeed, -1, 2050, "midboss", def.midbossAltSprite || def.midbossSprite);
+    return;
   }
   if (wave.type === "item") {
-    const spriteMap = { power: "carrierPower", bomb: "carrierBomb", life: "carrierLife", score: "carrierScore", hyper: "carrierScore" };
+    const spriteMap = { power: "carrierPower", bomb: "carrierBomb", life: "carrierLife", score: "carrierScore", hyperCharge: "carrierScore" };
     const x = wave.drop === "bomb" ? W * 0.72 : wave.drop === "life" ? W * 0.28 : W / 2;
     spawnEnemy(x, -72, rand(-32, 32), 105 * def.enemySpeed, 1, 130, "carrier", spriteMap[wave.drop], wave.drop);
+    return;
+  }
+
+  // ── sweep ─────────────────────────────────────────────────
+  if (wave.type === "sweep") {
+    if (no === 1) {
+      // S1: 横一列で素直に横断（5機、低速）
+      for (let i = 0; i < 5; i++) {
+        const y = 200 + i * 80;
+        const x = wave.side < 0 ? -50 : W + 50;
+        spawnEnemy(x, y, wave.side * -140 * def.enemySpeed, 20 * def.enemySpeed, wave.side, 46, "small", def.smallSprite);
+      }
+    } else if (no === 2) {
+      // S2: 高速で斜めに突撃（7機、速い）
+      for (let i = 0; i < 7; i++) {
+        const y = 120 + i * 55;
+        const x = wave.side < 0 ? -60 - i * 20 : W + 60 + i * 20;
+        spawnEnemy(x, y, wave.side * -220 * def.enemySpeed, (50 + i * 8) * def.enemySpeed, wave.side, 46, "small", def.smallSprite);
+      }
+    } else if (no === 3) {
+      // S3: 上下から挟む2列sweep（各4機）
+      for (let i = 0; i < 4; i++) {
+        const x = wave.side < 0 ? -50 : W + 50;
+        spawnEnemy(x, 160 + i * 90, wave.side * -175 * def.enemySpeed, 30 * def.enemySpeed, wave.side, 46, "small", def.smallSprite);
+        spawnEnemy(x, 180 + i * 90, wave.side * -155 * def.enemySpeed, -25 * def.enemySpeed, wave.side, 46, "small", def.smallSprite);
+      }
+    } else if (no === 4) {
+      // S4: 大型機がゆっくり横断（中型3機）
+      for (let i = 0; i < 3; i++) {
+        const x = wave.side < 0 ? -70 : W + 70;
+        spawnEnemy(x, 220 + i * 140, wave.side * -110 * def.enemySpeed, 15 * def.enemySpeed, wave.side, 260, "medium", def.mediumSprite);
+      }
+    } else {
+      // S5: 高速＋縦に長い斜め列（8機）
+      for (let i = 0; i < 8; i++) {
+        const y = 100 + i * 72;
+        const x = wave.side < 0 ? -60 - i * 30 : W + 60 + i * 30;
+        spawnEnemy(x, y, wave.side * -240 * def.enemySpeed, (40 + i * 10) * def.enemySpeed, wave.side, 52, "small", def.smallSprite);
+      }
+    }
+  }
+
+  // ── v ─────────────────────────────────────────────────────
+  if (wave.type === "v") {
+    if (no === 1) {
+      // S1: 緩やかなV字（7機、ゆっくり降下）
+      for (let i = -3; i <= 3; i++) {
+        spawnEnemy(W / 2 + i * 52, -60 - Math.abs(i) * 20, i * 18 * def.enemySpeed, 130 * def.enemySpeed, i < 0 ? -1 : 1, 46, "small", def.smallSprite);
+      }
+    } else if (no === 2) {
+      // S2: 2重V字（内側と外側）
+      for (let i = -3; i <= 3; i++) {
+        spawnEnemy(W / 2 + i * 48, -60 - Math.abs(i) * 24, i * 28 * def.enemySpeed, (150 + Math.abs(i) * 8) * def.enemySpeed, i < 0 ? -1 : 1, 46, "small", def.smallSprite);
+        spawnEnemy(W / 2 + i * 82, -80 - Math.abs(i) * 24, i * 22 * def.enemySpeed, (135 + Math.abs(i) * 8) * def.enemySpeed, i < 0 ? -1 : 1, 46, "small", def.smallSprite);
+      }
+    } else if (no === 3) {
+      // S3: 包囲V字（上から9機＋横から4機）
+      for (let i = -4; i <= 4; i++) {
+        spawnEnemy(W / 2 + i * 42, -70 - Math.abs(i) * 26, i * 30 * def.enemySpeed, (160 + Math.abs(i) * 10) * def.enemySpeed, i < 0 ? -1 : 1, 50, "small", def.smallSprite);
+      }
+      for (let i = 0; i < 2; i++) {
+        spawnEnemy(i === 0 ? -50 : W + 50, rand(300, 500), (i === 0 ? 1 : -1) * 160 * def.enemySpeed, 0, i === 0 ? 1 : -1, 50, "small", def.smallSprite);
+      }
+    } else if (no === 4) {
+      // S4: 中型機のV字（5機）
+      for (let i = -2; i <= 2; i++) {
+        spawnEnemy(W / 2 + i * 110, -80 - Math.abs(i) * 30, i * 15 * def.enemySpeed, 88 * def.enemySpeed, i < 0 ? -1 : 1, 260, "medium", def.mediumSprite);
+      }
+    } else {
+      // S5: 3重V字・密集（各列7機）
+      for (let layer = 0; layer < 3; layer++) {
+        for (let i = -3; i <= 3; i++) {
+          spawnEnemy(W / 2 + i * 44, -60 - Math.abs(i) * 22 - layer * 100, i * 26 * def.enemySpeed, (155 + Math.abs(i) * 9) * def.enemySpeed, i < 0 ? -1 : 1, 52, "small", def.smallSprite);
+        }
+      }
+    }
+  }
+
+  // ── ambush ────────────────────────────────────────────────
+  if (wave.type === "ambush") {
+    if (no === 1) {
+      // S1: 左右から4機ずつゆっくり（計8機、低速）
+      for (let i = 0; i < 4; i++) {
+        spawnEnemy(-50, 280 + i * 100, 130 * def.enemySpeed, -10, 1, 38, "small", def.smallSprite);
+        spawnEnemy(W + 50, 280 + i * 100, -130 * def.enemySpeed, -10, -1, 38, "small", def.smallSprite);
+      }
+    } else if (no === 2) {
+      // S2: 左右から高速で交差・すれ違い（6機ずつ）
+      for (let i = 0; i < 6; i++) {
+        const side = i % 2 ? -1 : 1;
+        spawnEnemy(side < 0 ? -52 : W + 52, 200 + i * 80, side * -240 * def.enemySpeed, -15, side, 38, "small", def.smallSprite);
+      }
+    } else if (no === 3) {
+      // S3: 上下左右4方向同時出現（包囲感）
+      for (let i = 0; i < 3; i++) {
+        spawnEnemy(-52, 240 + i * 120, 190 * def.enemySpeed, 0, 1, 42, "small", def.smallSprite);
+        spawnEnemy(W + 52, 240 + i * 120, -190 * def.enemySpeed, 0, -1, 42, "small", def.smallSprite);
+        spawnEnemy(120 + i * 200, -52, 0, 190 * def.enemySpeed, 1, 42, "small", def.smallSprite);
+      }
+    } else if (no === 4) {
+      // S4: 中型機が左右から2機ずつ＋小型6機
+      for (let i = 0; i < 2; i++) {
+        spawnEnemy(i === 0 ? -70 : W + 70, 320 + i * 180, (i === 0 ? 1 : -1) * 120 * def.enemySpeed, 0, i === 0 ? 1 : -1, 260, "medium", def.mediumSprite);
+      }
+      for (let i = 0; i < 6; i++) {
+        const side = i % 2 ? -1 : 1;
+        spawnEnemy(side < 0 ? -52 : W + 52, 220 + i * 90, side * -200 * def.enemySpeed, -10, side, 38, "small", def.smallSprite);
+      }
+    } else {
+      // S5: 全方位高速包囲（10機）
+      for (let i = 0; i < 5; i++) {
+        spawnEnemy(-52, 180 + i * 110, 230 * def.enemySpeed, rand(-20, 20), 1, 52, "small", def.smallSprite);
+        spawnEnemy(W + 52, 180 + i * 110, -230 * def.enemySpeed, rand(-20, 20), -1, 52, "small", def.smallSprite);
+      }
+    }
+  }
+
+  // ── medium ────────────────────────────────────────────────
+  if (wave.type === "medium") {
+    if (no === 1) {
+      // S1: 中型1機のみ（入門）
+      spawnEnemy(W / 2, -110, 0, 88 * def.enemySpeed, 1, 260, "medium", def.mediumSprite);
+    } else if (no === 2) {
+      // S2: 左右から2機、速めに突進
+      spawnEnemy(160, -110, 18, 100 * def.enemySpeed, -1, 260, "medium", def.mediumSprite);
+      spawnEnemy(W - 160, -110, -18, 100 * def.enemySpeed, 1, 260, "medium", def.mediumSprite);
+    } else if (no === 3) {
+      // S3: 3機が三角陣形
+      spawnEnemy(W / 2, -80, 0, 92 * def.enemySpeed, 1, 260, "medium", def.mediumSprite);
+      spawnEnemy(180, -160, 12, 85 * def.enemySpeed, -1, 260, "medium", def.mediumSprite);
+      spawnEnemy(W - 180, -160, -12, 85 * def.enemySpeed, 1, 260, "medium", def.mediumSprite);
+    } else if (no === 4) {
+      // S4: 4機が横列（幅広く展開）
+      for (let i = 0; i < 4; i++) {
+        spawnEnemy(100 + i * 175, -110 - i * 40, (i - 1.5) * 10, 90 * def.enemySpeed, i < 2 ? -1 : 1, 260, "medium", def.mediumSprite);
+      }
+    } else {
+      // S5: 3機三角＋小型6機随伴
+      spawnEnemy(W / 2, -80, 0, 95 * def.enemySpeed, 1, 260, "medium", def.mediumSprite);
+      spawnEnemy(180, -160, 14, 88 * def.enemySpeed, -1, 260, "medium", def.mediumSprite);
+      spawnEnemy(W - 180, -160, -14, 88 * def.enemySpeed, 1, 260, "medium", def.mediumSprite);
+      for (let i = 0; i < 6; i++) {
+        spawnEnemy(80 + i * 115, -220, (i - 2.5) * 20 * def.enemySpeed, 160 * def.enemySpeed, i < 3 ? -1 : 1, 46, "small", def.smallSprite);
+      }
+    }
+  }
+
+  // ── final ─────────────────────────────────────────────────
+  if (wave.type === "final") {
+    if (no <= 2) {
+      // S1・S2: 2列グリッド（オリジナルと同様）
+      for (let ring = 0; ring < 2; ring++) {
+        for (let i = 0; i < 9; i++) {
+          spawnEnemy(78 + i * 70, -70 - ring * 130, (i - 4) * 14 * def.enemySpeed, (185 + ring * 20) * def.enemySpeed, i < 4 ? -1 : 1, 62, "small", def.smallSprite);
+        }
+      }
+    } else if (no === 3) {
+      // S3: 包囲環（上から＋左右から同時）
+      for (let i = 0; i < 9; i++) {
+        spawnEnemy(78 + i * 70, -70, (i - 4) * 14 * def.enemySpeed, 185 * def.enemySpeed, i < 4 ? -1 : 1, 62, "small", def.smallSprite);
+      }
+      for (let i = 0; i < 5; i++) {
+        spawnEnemy(-52, 200 + i * 110, 180 * def.enemySpeed, 0, 1, 52, "small", def.smallSprite);
+        spawnEnemy(W + 52, 200 + i * 110, -180 * def.enemySpeed, 0, -1, 52, "small", def.smallSprite);
+      }
+    } else if (no === 4) {
+      // S4: 中型3機＋小型12機の大部隊
+      for (let i = 0; i < 3; i++) {
+        spawnEnemy(155 + i * 205, -110 - i * 70, (i - 1) * 12, 88 * def.enemySpeed, i === 0 ? -1 : 1, 260, "medium", def.mediumSprite);
+      }
+      for (let ring = 0; ring < 2; ring++) {
+        for (let i = 0; i < 6; i++) {
+          const x = wave.side < 0 ? -52 : W + 52;
+          spawnEnemy(x, 180 + i * 90 + ring * 50, (wave.side ?? 1) * -180 * def.enemySpeed, -10, wave.side ?? 1, 46, "small", def.smallSprite);
+        }
+      }
+    } else {
+      // S5: 3列グリッド（圧倒的物量）
+      for (let ring = 0; ring < 3; ring++) {
+        for (let i = 0; i < 9; i++) {
+          spawnEnemy(78 + i * 70, -70 - ring * 110, (i - 4) * 16 * def.enemySpeed, (190 + ring * 24) * def.enemySpeed, i < 4 ? -1 : 1, 62, "small", def.smallSprite);
+        }
+      }
+    }
   }
 }
 
@@ -1317,21 +1807,96 @@ function findMissileTarget(m) {
 
 function fireEnemy(e) {
   e.fireClock = 0;
+  const no = currentStage().no;
   const a = Math.atan2(player.y - e.y, player.x - e.x);
+
+  // ── キャリア: 全ステージ共通 ──────────────────────────────
+  if (e.size === "carrier") {
+    for (let i = -1; i <= 1; i++) spawnBullet(e.x, e.y, a + i * 0.2, 170, "#ffad45", 5, "star");
+    return;
+  }
+
+  // ── ミッドボス: 案D ステージ別射撃 ───────────────────────
   if (e.size === "midboss") {
-    for (let ring = 0; ring < 2; ring++) {
-      for (let i = 0; i < 12; i++) {
-        spawnBullet(e.x, e.y + 18, (i / 12) * TAU + time * 1.3 + ring * 0.16, 118 + ring * 48, ring ? "#ff4fcf" : "#62eaff", 6, "petal");
+    if (no === 1) {
+      // S1: 放射状2リング（現状通り、ゆっくり）
+      for (let ring = 0; ring < 2; ring++) {
+        for (let i = 0; i < 12; i++) {
+          spawnBullet(e.x, e.y + 18, (i / 12) * TAU + time * 1.3 + ring * 0.16, 118 + ring * 48, ring ? "#ff4fcf" : "#62eaff", 6, "petal");
+        }
+      }
+    } else if (no === 2) {
+      // S2: 高速リング1種 + 自機狙い扇（速さで圧迫）
+      for (let i = 0; i < 14; i++) {
+        spawnBullet(e.x, e.y + 18, (i / 14) * TAU + time * 2.0, 185, "#ffe66d", 6, "ring");
+      }
+      for (let i = -2; i <= 2; i++) {
+        spawnBullet(e.x, e.y + 18, a + i * 0.14, 210, "#ff4fcf", 5, "needle");
+      }
+    } else if (no === 3) {
+      // S3: 自機狙い多方向（動き続けることが解答）
+      for (let i = -3; i <= 3; i++) {
+        spawnBullet(e.x, e.y + 18, a + i * 0.11, 190 + Math.abs(i) * 14, "#ff355e", 6, "needle");
+      }
+    } else if (no === 4) {
+      // S4: 遅弾大量 + 速弾少数の混合（安全圏が消える）
+      for (let i = 0; i < 10; i++) {
+        const angle = (i / 10) * TAU + time * 0.8;
+        spawnBullet(e.x, e.y + 18, angle, 72, "#ad5cff", 8, "orb");
+      }
+      for (let i = -1; i <= 1; i++) {
+        spawnBullet(e.x, e.y + 18, a + i * 0.2, 230, "#ff355e", 5, "needle");
+      }
+    } else {
+      // S5: S2〜S4をランダム切り替え
+      const r = Math.floor(time * 0.4) % 3;
+      if (r === 0) {
+        for (let i = 0; i < 14; i++) spawnBullet(e.x, e.y + 18, (i / 14) * TAU + time * 2.0, 185, "#ffe66d", 6, "ring");
+        for (let i = -2; i <= 2; i++) spawnBullet(e.x, e.y + 18, a + i * 0.14, 210, "#ff4fcf", 5, "needle");
+      } else if (r === 1) {
+        for (let i = -3; i <= 3; i++) spawnBullet(e.x, e.y + 18, a + i * 0.11, 190 + Math.abs(i) * 14, "#ff355e", 6, "needle");
+      } else {
+        for (let i = 0; i < 10; i++) spawnBullet(e.x, e.y + 18, (i / 10) * TAU + time * 0.8, 72, "#ad5cff", 8, "orb");
+        for (let i = -1; i <= 1; i++) spawnBullet(e.x, e.y + 18, a + i * 0.2, 230, "#ff355e", 5, "needle");
       }
     }
-  } else if (e.size === "medium") {
+    return;
+  }
+
+  // ── 中型: 全ステージ共通（現状通り）───────────────────────
+  if (e.size === "medium") {
     for (let i = -2; i <= 2; i++) {
       spawnBullet(e.x, e.y + 10, a + i * 0.16, 175 + Math.abs(i) * 20, i % 2 ? "#ff4fcf" : "#62eaff", 6, i === 0 ? "ring" : "petal");
     }
-  } else if (e.size === "carrier") {
-    for (let i = -1; i <= 1; i++) spawnBullet(e.x, e.y, a + i * 0.2, 170, "#ffad45", 5, "star");
+    return;
+  }
+
+  // ── 小型: 案A ステージ別射撃スタイル ─────────────────────
+  if (no === 1) {
+    // S1: 自機狙い1発、遅め（素直で読める）
+    spawnBullet(e.x, e.y, a, 220, "#ffad45", 5, "needle");
+
+  } else if (no === 2) {
+    // S2: 3way拡散（横断中に弾が広がる）
+    for (let i = -1; i <= 1; i++) {
+      spawnBullet(e.x, e.y, a + i * 0.22, 230, "#ff8c00", 5, i === 0 ? "needle" : "wave");
+    }
+
+  } else if (no === 3) {
+    // S3: 自機狙い2連射（0.08秒差で追ってくる感覚）
+    spawnBullet(e.x, e.y, a, 240, "#ff355e", 5, "needle");
+    spawnBullet(e.x, e.y, a + 0.08, 200, "#ff4d7e", 5, "needle");
+
+  } else if (no === 4) {
+    // S4: 自機狙い + 真下に1発（前後の安全地帯を削る）
+    spawnBullet(e.x, e.y, a, 235, "#ad5cff", 5, "needle");
+    spawnBullet(e.x, e.y, Math.PI / 2, 140, "#8642ff", 6, "orb");
+
   } else {
-    spawnBullet(e.x, e.y, a, phase === "stage" ? 250 : 230, "#ffad45", 5, Math.random() > 0.76 ? "wave" : "needle");
+    // S5: 自機狙い + 左右に1発ずつ（3方向包囲）
+    spawnBullet(e.x, e.y, a, 245, "#ff355e", 5, "needle");
+    spawnBullet(e.x, e.y, 0, 160, "#ad5cff", 5, "orb");
+    spawnBullet(e.x, e.y, Math.PI, 160, "#ad5cff", 5, "orb");
   }
 }
 
@@ -1372,7 +1937,7 @@ function collide() {
     if (phase === "boss" && boss.visible && Math.abs(beam.x - boss.x) < boss.r * 0.9 && boss.y < beam.y) {
       damageBoss(beam.damage);
       addComboHits(1);
-      addHyperGauge(4.5);
+      addHyperGauge(0.45);
       if (Math.random() < 0.12) spawnHitSpark(beam.x + rand(-18, 18), boss.y + rand(-30, 30), "#bffcff", 0.6);
     }
     for (const e of enemies) {
@@ -1381,7 +1946,7 @@ function collide() {
         e.hp -= beam.damage * (e.size === "midboss" ? 0.85 : 1.2);
         e.hitFlash = 1;
         addComboHits(1);
-        addHyperGauge(e.size === "midboss" ? 8 : 5);
+        addHyperGauge(e.size === "midboss" ? 0.8 : 0.5);
         if (Math.random() < 0.16) spawnHitSpark(e.x + rand(-e.r, e.r), e.y, "#bffcff", e.size === "midboss" ? 0.85 : 0.55);
         if (e.hp <= 0) killEnemy(e);
       }
@@ -1444,7 +2009,6 @@ function collide() {
       b.graze = true;
       player.graze++;
       addScore(240);
-      addComboHits(1);
       particles.push({ x: player.x, y: player.y, vx: rand(-60, 60), vy: rand(-90, 20), life: 0.35, color: "#8df8ff" });
     }
     if (player.invuln <= 0 && d < player.r + b.r) {
@@ -1457,11 +2021,12 @@ function collide() {
     if (dist2(p, player) < (p.r + 18) ** 2) {
       if (p.type === "bomb") player.bombs = Math.min(4, player.bombs + 1);
       else if (p.type === "hyper") player.hyperStock = Math.min(HYPER_STOCK_MAX, player.hyperStock + 1);
+      else if (p.type === "hyperCharge") addHyperGauge(32);
       else if (p.type === "life") player.lives = Math.min(9, player.lives + 1);
       else if (p.type === "score") addScore(50000);
       else player.power = Math.min(8, player.power + 1);
       addScore(p.type === "score" ? 0 : 2500);
-      playSfx(p.type === "life" ? "life" : "hit", 0.08);
+      playSfx(p.type === "life" ? "life" : "pickup", p.type === "hyper" || p.type === "hyperCharge" ? 0.22 : 0.15);
       pickups.splice(i, 1);
     }
   }
@@ -1471,9 +2036,9 @@ function damageBoss(amount) {
   if (phase !== "boss") return;
   boss.hp = Math.max(0, boss.hp - amount);
   addScore(amount * 23);
-  addComboHits(1);
   if (Math.random() < 0.24) spawnHitSpark(boss.x + rand(-42, 42), boss.y + rand(-38, 38), "#ffdf65", 0.9);
   if (boss.hp <= 0) {
+    addComboHits(80);
     addScore(100000);
     clearStage();
   }
@@ -1488,11 +2053,44 @@ function killEnemy(e) {
   massiveExplosion(e.x, e.y, e.size === "midboss" ? 1.4 : e.size === "medium" ? 0.95 : 0.5);
   playSfx("explode", e.size === "midboss" ? 0.34 : e.size === "medium" ? 0.3 : 0.22);
   if (e.drop) scatterPickups(e.x, e.y, e.drop, 1);
-  if (e.size === "midboss") scatterPickups(e.x, e.y, "hyper", 1);
+  if (e.size === "midboss") scatterPickups(e.x, e.y, "hyperCharge", 1);
+
+  // 案B: ステージ別 死亡時ばらまき（小型のみ）
+  if (e.size === "small") {
+    const no = currentStage().no;
+    const a = Math.atan2(player.y - e.y, player.x - e.x);
+    if (no === 2) {
+      // S2: ランダム2発ばらまき
+      for (let i = 0; i < 2; i++) {
+        spawnBullet(e.x, e.y, rand(0, TAU), rand(80, 140), "#ff8c00", 6, "orb");
+      }
+    } else if (no === 3) {
+      // S3: 自機方向に1発（倒しても追ってくる）
+      spawnBullet(e.x, e.y, a, 180, "#ff355e", 6, "needle");
+    } else if (no === 4) {
+      // S4: 4方向放出
+      for (let i = 0; i < 4; i++) {
+        spawnBullet(e.x, e.y, (i / 4) * TAU, 120, "#ad5cff", 6, "orb");
+      }
+    } else if (no === 5) {
+      // S5: S2〜S4のランダム混合
+      const r = Math.floor(Math.random() * 3);
+      if (r === 0) {
+        for (let i = 0; i < 2; i++) spawnBullet(e.x, e.y, rand(0, TAU), rand(80, 140), "#ff8c00", 6, "orb");
+      } else if (r === 1) {
+        spawnBullet(e.x, e.y, a, 180, "#ff355e", 6, "needle");
+      } else {
+        for (let i = 0; i < 4; i++) spawnBullet(e.x, e.y, (i / 4) * TAU, 120, "#ad5cff", 6, "orb");
+      }
+    }
+    // S1は何も出ない（現状通り）
+  }
 }
 
 function scatterPickups(x, y, type, count) {
   for (let i = 0; i < count; i++) {
+    if (type === "life" && lifePickupsThisStage >= 1) return;
+    if (type === "life") lifePickupsThisStage++;
     pickups.push({
       x,
       y,
@@ -1534,6 +2132,7 @@ function hitPlayer() {
   player.power = Math.max(0, player.power - 3);
   player.invuln = 2.4;
   player.chain = 0;
+  player.comboTimer = 0;
   shake = 22;
   flash = 0.95;
   massiveExplosion(player.x, player.y, 1.15);
@@ -1967,13 +2566,19 @@ function drawPlayer() {
 
 function drawPlayerBullets() {
   ctx.save();
-  ctx.shadowColor = "#5ff2ff";
-  ctx.shadowBlur = 14;
+  const hyper = player.hyperTime > 0;
+  ctx.shadowColor = hyper ? "#ffe66d" : "#5ff2ff";
+  ctx.shadowBlur = hyper ? 26 : 14;
+  if (hyper) ctx.globalCompositeOperation = "screen";
   for (const b of playerBullets) {
-    ctx.fillStyle = "#bdfcff";
-    ctx.fillRect(b.x - 2, b.y - 14, 4, 22);
-    ctx.fillStyle = "#3aa5ff";
-    ctx.fillRect(b.x - 1, b.y - 20, 2, 12);
+    ctx.fillStyle = hyper ? "#fff8ba" : "#bdfcff";
+    ctx.fillRect(b.x - (hyper ? 3 : 2), b.y - 14, hyper ? 6 : 4, 22);
+    ctx.fillStyle = hyper ? "#ffb21f" : "#3aa5ff";
+    ctx.fillRect(b.x - (hyper ? 2 : 1), b.y - 22, hyper ? 4 : 2, 14);
+    if (hyper) {
+      ctx.fillStyle = "rgba(255, 235, 80, 0.36)";
+      ctx.fillRect(b.x - 7, b.y - 18, 14, 26);
+    }
   }
   ctx.restore();
 
@@ -1982,9 +2587,10 @@ function drawPlayerBullets() {
     const a = Math.atan2(m.vy, m.vx) + Math.PI / 2;
     ctx.translate(m.x, m.y);
     ctx.rotate(a);
-    ctx.shadowColor = "#ffad45";
-    ctx.shadowBlur = 18;
-    ctx.fillStyle = "#f7fbff";
+    ctx.shadowColor = hyper ? "#ffe66d" : "#ffad45";
+    ctx.shadowBlur = hyper ? 28 : 18;
+    if (hyper) ctx.globalCompositeOperation = "screen";
+    ctx.fillStyle = hyper ? "#fff3a4" : "#f7fbff";
     ctx.beginPath();
     ctx.moveTo(0, -14);
     ctx.lineTo(7, 8);
@@ -1992,7 +2598,7 @@ function drawPlayerBullets() {
     ctx.lineTo(-7, 8);
     ctx.closePath();
     ctx.fill();
-    ctx.fillStyle = "#ff7b2e";
+    ctx.fillStyle = hyper ? "#ffd22f" : "#ff7b2e";
     ctx.beginPath();
     ctx.moveTo(0, 9);
     ctx.lineTo(6, 18);
@@ -2008,22 +2614,30 @@ function drawPlayerBullets() {
 function drawBeams() {
   ctx.save();
   ctx.globalCompositeOperation = "screen";
+  const hyper = player.hyperTime > 0;
   for (const b of beams) {
     ctx.globalAlpha = clamp(b.life / (b.max || 0.1), 0, 1);
     const g = ctx.createLinearGradient(b.x, 0, b.x, b.y);
-    g.addColorStop(0, "rgba(111, 240, 255, 0)");
-    g.addColorStop(0.55, "rgba(255, 72, 220, 0.55)");
-    g.addColorStop(1, "rgba(210, 255, 255, 0.95)");
+    if (hyper) {
+      g.addColorStop(0, "rgba(255, 238, 64, 0)");
+      g.addColorStop(0.42, "rgba(255, 205, 38, 0.82)");
+      g.addColorStop(0.72, "rgba(255, 111, 33, 0.7)");
+      g.addColorStop(1, "rgba(255, 255, 210, 1)");
+    } else {
+      g.addColorStop(0, "rgba(111, 240, 255, 0)");
+      g.addColorStop(0.55, "rgba(255, 72, 220, 0.55)");
+      g.addColorStop(1, "rgba(210, 255, 255, 0.95)");
+    }
     ctx.strokeStyle = g;
-    ctx.shadowColor = "#8df8ff";
-    ctx.shadowBlur = 24;
-    ctx.lineWidth = b.w;
+    ctx.shadowColor = hyper ? "#ffe66d" : "#8df8ff";
+    ctx.shadowBlur = hyper ? 42 : 24;
+    ctx.lineWidth = hyper ? b.w * 1.35 : b.w;
     ctx.beginPath();
     ctx.moveTo(b.x, b.y);
     ctx.lineTo(b.x + Math.sin(time * 30) * 6, 0);
     ctx.stroke();
-    ctx.strokeStyle = "rgba(255,255,255,0.9)";
-    ctx.lineWidth = Math.max(2, b.w * 0.34);
+    ctx.strokeStyle = hyper ? "rgba(255,255,235,1)" : "rgba(255,255,255,0.9)";
+    ctx.lineWidth = Math.max(2, b.w * (hyper ? 0.48 : 0.34));
     ctx.beginPath();
     ctx.moveTo(b.x, b.y);
     ctx.lineTo(b.x + Math.sin(time * 42) * 3, 0);
@@ -2150,10 +2764,25 @@ function drawPickups() {
     const sprite = itemSprites[p.type] || itemSprites.power;
     ctx.save();
     ctx.translate(p.x, p.y);
-    const color = p.type === "hyper" ? "#b46cff" : p.type === "bomb" ? "#ff9b32" : p.type === "life" ? "#ff5f82" : p.type === "score" ? "#ffe66d" : "#69f6ff";
+    const color = p.type === "hyper" || p.type === "hyperCharge" ? "#b46cff" : p.type === "bomb" ? "#ff9b32" : p.type === "life" ? "#ff5f82" : p.type === "score" ? "#ffe66d" : "#69f6ff";
     ctx.shadowColor = color;
     ctx.shadowBlur = 18;
-    if (p.type !== "hyper" && itemSheet.complete && itemSheet.naturalWidth && sprite) {
+    if (p.type === "hyper" && hyperStockImage.complete && hyperStockImage.naturalWidth) {
+      ctx.rotate(Math.sin(time * 2.4) * 0.08);
+      ctx.shadowColor = "#ffe66d";
+      ctx.shadowBlur = 24;
+      ctx.drawImage(hyperStockImage, 150, 150, 960, 960, -32, -32, 64, 64);
+      ctx.restore();
+      continue;
+    }
+    if (p.type === "hyperCharge" && hyperChargeImage.complete && hyperChargeImage.naturalWidth) {
+      ctx.rotate(Math.sin(time * 3) * 0.1);
+      ctx.globalCompositeOperation = "source-over";
+      ctx.drawImage(hyperChargeImage, 240, 145, 780, 940, -34, -41, 68, 82);
+      ctx.restore();
+      continue;
+    }
+    if (p.type !== "hyper" && p.type !== "hyperCharge" && itemSheet.complete && itemSheet.naturalWidth && sprite) {
       ctx.rotate(Math.sin(time * 3) * 0.12);
       drawSpriteFrom(itemSheet, sprite, 0, 0, p.type === "score" ? 52 : 48, p.type === "life" ? 50 : 48, 0, true);
       ctx.restore();
@@ -2172,11 +2801,11 @@ function drawPickups() {
     if (p.type === "life") {
       ctx.fillRect(-8, -2, 16, 4);
       ctx.fillRect(-2, -8, 4, 16);
-    } else if (p.type === "hyper") {
+    } else if (p.type === "hyper" || p.type === "hyperCharge") {
       ctx.font = "900 15px Segoe UI, sans-serif";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillText("H", 0, 1);
+      ctx.fillText(p.type === "hyper" ? "H" : "+", 0, 1);
     } else if (p.type === "bomb") {
       ctx.beginPath();
       ctx.arc(0, 0, 6, 0, TAU);
@@ -2333,7 +2962,8 @@ function drawHud() {
   ctx.fillText(phase === "boss" || phase === "bossDeath" ? "BOSS" : "PHASE", W - 14, 28);
   if (phase === "boss") drawBar(W - 214, 38, 200, 16, boss.hp / boss.maxHp, "#ff842f", "#77eaff");
   ctx.fillText(phase === "stage" ? def.title : phase === "silence" ? "SILENCE" : phase === "boss" ? "BOSS PHASE" : phase === "bossDeath" ? "CORE COLLAPSE" : phase === "credits" ? "STAFF ROLL" : "STAGE CLEAR", W - 14, 82);
-  ctx.fillText(`CHAIN: ${player.chain}`, W - 20, H - 18);
+  drawBar(W - 214, H - 58, 194, 14, player.comboTimer / COMBO_HOLD_SECONDS, "#ffe66d", "#fff2a4");
+  ctx.fillText(`CHAIN: ${Math.floor(player.chain)}`, W - 20, H - 18);
   ctx.restore();
 }
 
