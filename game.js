@@ -26,6 +26,10 @@ let time = 0;
 let shake = 0;
 let flash = 0;
 let pointerActive = false;
+let pointerLastX = 0;
+let pointerLastY = 0;
+let pointerDeltaX = 0;
+let pointerDeltaY = 0;
 let bossPhaseClock = 0;
 let bulletClock = 0;
 let enemyClock = 0;
@@ -117,6 +121,7 @@ const bgm = {
 let currentBgm = null;
 let audioContext = null;
 let bgmUnlocked = false;
+const touchBombButton = { x: W - 176, y: H - 126, w: 154, h: 72 };
 for (const track of Object.values(bgm)) {
   track.loop = true;
   track.volume = 0.58;
@@ -149,10 +154,95 @@ function unlockBgm() {
   }
 }
 
+function makeNoiseSource(duration) {
+  const sampleRate = audioContext.sampleRate;
+  const buffer = audioContext.createBuffer(1, Math.max(1, Math.floor(sampleRate * duration)), sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+  const source = audioContext.createBufferSource();
+  source.buffer = buffer;
+  return source;
+}
+
+function addOscLayer(now, {
+  type = "sine",
+  from = 440,
+  to = 220,
+  duration = 0.12,
+  volume = 0.2,
+  attack = 0.004,
+  filterType = "lowpass",
+  filterFrom = 2200,
+  filterTo = 900,
+}) {
+  const osc = audioContext.createOscillator();
+  const filter = audioContext.createBiquadFilter();
+  const gain = audioContext.createGain();
+  osc.type = type;
+  filter.type = filterType;
+  osc.frequency.setValueAtTime(from, now);
+  osc.frequency.exponentialRampToValueAtTime(Math.max(1, to), now + duration);
+  filter.frequency.setValueAtTime(filterFrom, now);
+  filter.frequency.exponentialRampToValueAtTime(Math.max(1, filterTo), now + duration);
+  gain.gain.setValueAtTime(0.0001, now);
+  gain.gain.exponentialRampToValueAtTime(Math.max(0.0001, volume), now + attack);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+  osc.connect(filter);
+  filter.connect(gain);
+  gain.connect(audioContext.destination);
+  osc.start(now);
+  osc.stop(now + duration + 0.02);
+}
+
+function addNoiseLayer(now, {
+  duration = 0.12,
+  volume = 0.2,
+  attack = 0.003,
+  filterType = "bandpass",
+  filterFrequency = 1600,
+  filterQ = 0.9,
+}) {
+  const noise = makeNoiseSource(duration);
+  const filter = audioContext.createBiquadFilter();
+  const gain = audioContext.createGain();
+  filter.type = filterType;
+  filter.frequency.setValueAtTime(filterFrequency, now);
+  filter.Q.setValueAtTime(filterQ, now);
+  gain.gain.setValueAtTime(0.0001, now);
+  gain.gain.exponentialRampToValueAtTime(Math.max(0.0001, volume), now + attack);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+  noise.connect(filter);
+  filter.connect(gain);
+  gain.connect(audioContext.destination);
+  noise.start(now);
+  noise.stop(now + duration + 0.02);
+}
+
 function playSfx(type, volume = 0.35) {
   if (!audioContext) return;
   try {
     const now = audioContext.currentTime;
+    if (type === "hit") {
+      addNoiseLayer(now, { duration: 0.09, volume: volume * 1.15, filterType: "bandpass", filterFrequency: 2300, filterQ: 1.7 });
+      addNoiseLayer(now, { duration: 0.045, volume: volume * 0.8, filterType: "highpass", filterFrequency: 4200, filterQ: 0.7 });
+      addOscLayer(now, { type: "square", from: 980, to: 150, duration: 0.075, volume: volume * 0.95, filterFrom: 3400, filterTo: 900 });
+      addOscLayer(now + 0.012, { type: "sawtooth", from: 170, to: 80, duration: 0.11, volume: volume * 0.45, filterFrom: 850, filterTo: 320 });
+      return;
+    }
+    if (type === "explode") {
+      addNoiseLayer(now, { duration: 0.42, volume: volume * 1.9, filterType: "lowpass", filterFrequency: 1400, filterQ: 0.6 });
+      addNoiseLayer(now + 0.018, { duration: 0.18, volume: volume * 1.2, filterType: "bandpass", filterFrequency: 2600, filterQ: 0.9 });
+      addOscLayer(now, { type: "sawtooth", from: 150, to: 38, duration: 0.4, volume: volume * 1.65, filterFrom: 1000, filterTo: 180 });
+      addOscLayer(now + 0.025, { type: "triangle", from: 72, to: 32, duration: 0.5, volume: volume * 0.9, filterFrom: 420, filterTo: 120 });
+      return;
+    }
+    if (type === "missilehit") {
+      addOscLayer(now, { type: "sawtooth", from: 210, to: 42, duration: 0.34, volume: volume * 1.8, filterFrom: 1200, filterTo: 190 });
+      addNoiseLayer(now, { duration: 0.28, volume: volume * 1.55, filterType: "lowpass", filterFrequency: 1700, filterQ: 0.7 });
+      addNoiseLayer(now + 0.008, { duration: 0.085, volume: volume * 1.15, filterType: "highpass", filterFrequency: 3600, filterQ: 0.8 });
+      addOscLayer(now + 0.018, { type: "square", from: 520, to: 95, duration: 0.12, volume: volume * 0.7, filterFrom: 2200, filterTo: 650 });
+      return;
+    }
     const osc = audioContext.createOscillator();
     const gain = audioContext.createGain();
     const filter = audioContext.createBiquadFilter();
@@ -638,21 +728,45 @@ function pointerToGame(event) {
   };
 }
 
+function isTouchBombButton(p) {
+  return IS_MOBILE_BROWSER &&
+    p.x >= touchBombButton.x &&
+    p.x <= touchBombButton.x + touchBombButton.w &&
+    p.y >= touchBombButton.y &&
+    p.y <= touchBombButton.y + touchBombButton.h;
+}
+
 canvas.addEventListener("pointerdown", (event) => {
+  ensureAudio();
+  const p = pointerToGame(event);
+  if (isTouchBombButton(p)) {
+    useBomb();
+    return;
+  }
   pointerActive = true;
   canvas.setPointerCapture(event.pointerId);
-  const p = pointerToGame(event);
-  player.targetX = p.x;
-  player.targetY = p.y;
+  pointerLastX = p.x;
+  pointerLastY = p.y;
+  pointerDeltaX = 0;
+  pointerDeltaY = 0;
 });
 canvas.addEventListener("pointermove", (event) => {
   if (!pointerActive) return;
   const p = pointerToGame(event);
-  player.targetX = p.x;
-  player.targetY = p.y;
+  pointerDeltaX += p.x - pointerLastX;
+  pointerDeltaY += p.y - pointerLastY;
+  pointerLastX = p.x;
+  pointerLastY = p.y;
 });
 canvas.addEventListener("pointerup", () => {
   pointerActive = false;
+  pointerDeltaX = 0;
+  pointerDeltaY = 0;
+});
+canvas.addEventListener("pointercancel", () => {
+  pointerActive = false;
+  pointerDeltaX = 0;
+  pointerDeltaY = 0;
 });
 
 function loop(now) {
@@ -704,8 +818,10 @@ function updatePlayer(dt) {
   if (keys.has("ArrowDown") || keys.has("KeyS")) dy += 1;
 
   if (pointerActive) {
-    player.x += (player.targetX - player.x) * Math.min(1, dt * 18);
-    player.y += (player.targetY - player.y) * Math.min(1, dt * 18);
+    player.x += pointerDeltaX;
+    player.y += pointerDeltaY;
+    pointerDeltaX = 0;
+    pointerDeltaY = 0;
   } else if (dx || dy) {
     const len = Math.hypot(dx, dy) || 1;
     const speed = player.focus ? 210 : 355;
@@ -1162,7 +1278,7 @@ function collide() {
     if (phase === "boss" && boss.visible && dist2(m, boss) < (boss.r + m.r) ** 2) {
       missiles.splice(i, 1);
       spawnHitSpark(m.x, m.y, "#ffad45", 1.25);
-      playSfx("explode", 0.16);
+      playSfx("missilehit", 0.18);
       damageBoss(m.damage);
       continue;
     }
@@ -1173,7 +1289,7 @@ function collide() {
         e.hp -= m.damage;
         e.hitFlash = 1;
         spawnHitSpark(m.x, m.y, "#ffad45", 1.15);
-        playSfx("explode", 0.15);
+        playSfx("missilehit", 0.17);
         missiles.splice(i, 1);
         consumed = true;
         if (e.hp <= 0) killEnemy(e);
@@ -1336,6 +1452,7 @@ function render() {
   drawEffects();
   ctx.restore();
   if (phase !== "credits") drawHud();
+  drawTouchControls();
   drawPhaseText();
   if (phase === "gameover") drawGameOverEffect();
   if (phase === "credits") drawCredits();
@@ -2021,6 +2138,28 @@ function drawHud() {
   if (phase === "boss") drawBar(W - 214, 38, 200, 16, boss.hp / boss.maxHp, "#ff842f", "#77eaff");
   ctx.fillText(phase === "stage" ? def.title : phase === "silence" ? "SILENCE" : phase === "boss" ? "BOSS PHASE" : phase === "bossDeath" ? "CORE COLLAPSE" : phase === "credits" ? "STAFF ROLL" : "STAGE CLEAR", W - 14, 82);
   ctx.fillText(`CHAIN: ${player.chain}`, W - 20, H - 18);
+  ctx.restore();
+}
+
+function drawTouchControls() {
+  if (!IS_MOBILE_BROWSER || phase === "credits") return;
+  const b = touchBombButton;
+  const ready = running && player.bombs > 0 && phase !== "gameover";
+  ctx.save();
+  ctx.globalAlpha = ready ? 0.86 : 0.42;
+  ctx.fillStyle = "rgba(8, 18, 36, 0.82)";
+  ctx.strokeStyle = ready ? "#ffb35c" : "rgba(210, 235, 242, 0.55)";
+  ctx.lineWidth = 3;
+  ctx.fillRect(b.x, b.y, b.w, b.h);
+  ctx.strokeRect(b.x, b.y, b.w, b.h);
+  ctx.fillStyle = ready ? "#ffe2a8" : "#b8cbd2";
+  ctx.shadowColor = ready ? "#ff6d36" : "transparent";
+  ctx.shadowBlur = ready ? 13 : 0;
+  ctx.textAlign = "center";
+  ctx.font = "900 24px Segoe UI, sans-serif";
+  ctx.fillText("BOMB", b.x + b.w / 2, b.y + 31);
+  ctx.font = "900 18px Segoe UI, sans-serif";
+  ctx.fillText(`${player.bombs}`, b.x + b.w / 2, b.y + 56);
   ctx.restore();
 }
 
