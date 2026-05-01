@@ -9,7 +9,11 @@ const TAU = Math.PI * 2;
 const PLAYER_START_LIVES = 6;
 const IS_MOBILE_BROWSER = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 const MAX_ENEMY_BULLETS = IS_MOBILE_BROWSER ? 380 : 560;
-const EXTRA_LIFE_INTERVAL = 1000000;
+const EXTRA_LIFE_INTERVAL = 5000000;
+const HYPER_GAUGE_MAX = 1000;
+const HYPER_STOCK_MAX = 5;
+const HYPER_ITEM_DROP_Y = 130;
+const HYPER_DURATION = 12;
 const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
 const rand = (min, max) => min + Math.random() * (max - min);
 const dist2 = (a, b) => {
@@ -30,6 +34,7 @@ let pointerLastX = 0;
 let pointerLastY = 0;
 let pointerDeltaX = 0;
 let pointerDeltaY = 0;
+let pointerSwipeTimer = 0;
 let bossPhaseClock = 0;
 let bulletClock = 0;
 let enemyClock = 0;
@@ -63,10 +68,33 @@ const STAGE_WAVES = [
   { t: 31.0, type: "v" },
   { t: 34.5, type: "item", drop: "bomb" },
   { t: 38.0, type: "midboss" },
+  { t: 43.5, type: "midboss2" },
   { t: 48.0, type: "item", drop: "life" },
   { t: 50.0, type: "ambush" },
   { t: 54.0, type: "item", drop: "score" },
   { t: 56.5, type: "final" },
+];
+const STAGE_5_WAVES = [
+  { t: 0.8, type: "sweep", side: -1 },
+  { t: 3.8, type: "sweep", side: 1 },
+  { t: 7.0, type: "v" },
+  { t: 10.8, type: "ambush" },
+  { t: 13.2, type: "medium" },
+  { t: 17.2, type: "sweep", side: -1 },
+  { t: 20.6, type: "v" },
+  { t: 24.0, type: "item", drop: "power" },
+  { t: 26.5, type: "ambush" },
+  { t: 30.0, type: "medium" },
+  { t: 34.5, type: "midboss" },
+  { t: 42.0, type: "sweep", side: 1 },
+  { t: 47.0, type: "item", drop: "hyper" },
+  { t: 50.5, type: "v" },
+  { t: 55.5, type: "midboss2" },
+  { t: 64.0, type: "ambush" },
+  { t: 70.0, type: "medium" },
+  { t: 76.0, type: "item", drop: "bomb" },
+  { t: 82.0, type: "final" },
+  { t: 88.0, type: "item", drop: "score" },
 ];
 
 const keys = new Set();
@@ -99,6 +127,10 @@ const stageBackgroundSheet = new Image();
 stageBackgroundSheet.src = "assets/stage-backgrounds.png";
 stageBackgroundSheet.onload = () => render();
 
+const stage5AssetSheet = new Image();
+stage5AssetSheet.src = "assets/stage5-assets.png";
+stage5AssetSheet.onload = () => render();
+
 const midbossItemSheet = new Image();
 midbossItemSheet.src = "assets/midboss-item-sprites.png";
 midbossItemSheet.onload = () => render();
@@ -116,6 +148,8 @@ const bgm = {
   boss3: new Audio("BGM/BGM_Stage3BOSS_鋼の中枢.mp3"),
   stage4: new Audio("BGM/BGM_Stage4_雷鳴の第四幕.mp3"),
   boss4: new Audio("BGM/BGM_Stage4BOSS_鋼牙の咆哮.mp3"),
+  stage5: new Audio("BGM/BGM_Stage5_最終砲台.mp3"),
+  boss5: new Audio("BGM/BGM_Stage5BOSS_黒鋼の終幕.mp3"),
   allclear: new Audio("BGM/BGM_ALLCLEAR_残響のクリア.mp3"),
 };
 let currentBgm = null;
@@ -331,6 +365,15 @@ const stageAssetSprites = {
   s4Boss: { sx: 653, sy: 813, sw: 594, sh: 421 },
 };
 
+const stage5AssetSprites = {
+  s5Boss: { sx: 60, sy: 18, sw: 1134, sh: 640 },
+  s5MidbossA: { sx: 88, sy: 548, sw: 468, sh: 354 },
+  s5MidbossB: { sx: 720, sy: 532, sw: 436, sh: 378 },
+  s5Small: { sx: 166, sy: 954, sw: 190, sh: 168 },
+  s5Medium: { sx: 485, sy: 943, sw: 270, sh: 212 },
+  s5Bg: { sx: 862, sy: 952, sw: 258, sh: 258 },
+};
+
 const midbossItemSprites = {
   mb1: { sx: 42, sy: 56, sw: 270, sh: 446 },
   mb2: { sx: 392, sy: 58, sw: 274, sh: 478 },
@@ -360,10 +403,11 @@ const STAGES = [
     mediumSprite: "enemyC",
     bossSprite: "boss",
     midbossSprite: "mb1",
+    midbossAltSprite: "s5MidbossA",
     bossW: 380,
     bossH: 346,
     bossR: 68,
-    bossHp: 9000,
+    bossHp: 13500,
     enemyHp: 1,
     enemySpeed: 1,
     fireRate: 1,
@@ -380,10 +424,11 @@ const STAGES = [
     mediumSprite: "s2Medium",
     bossSprite: "s2Boss",
     midbossSprite: "mb2",
+    midbossAltSprite: "s5MidbossB",
     bossW: 420,
     bossH: 324,
     bossR: 76,
-    bossHp: 11800,
+    bossHp: 17700,
     enemyHp: 1.18,
     enemySpeed: 1.08,
     fireRate: 0.9,
@@ -400,10 +445,11 @@ const STAGES = [
     mediumSprite: "s3Medium",
     bossSprite: "s3Boss",
     midbossSprite: "mb3",
+    midbossAltSprite: "s5MidbossA",
     bossW: 430,
     bossH: 360,
     bossR: 84,
-    bossHp: 14800,
+    bossHp: 22200,
     enemyHp: 1.36,
     enemySpeed: 1.15,
     fireRate: 0.78,
@@ -420,15 +466,39 @@ const STAGES = [
     mediumSprite: "s4Medium",
     bossSprite: "s4Boss",
     midbossSprite: "mb4",
+    midbossAltSprite: "s5MidbossB",
     bossW: 520,
     bossH: 368,
     bossR: 104,
-    bossHp: 19000,
+    bossHp: 28500,
     enemyHp: 1.62,
     enemySpeed: 1.24,
     fireRate: 0.66,
     bossInterval: 0.125,
     bulletSpeed: 1.25,
+  },
+  {
+    no: 5,
+    title: "FINAL GUN PLATFORM",
+    stageBgm: "stage5",
+    bossBgm: "boss5",
+    bg: { sx: 862, sy: 952, sw: 258, sh: 258, sheet: "stage5" },
+    smallSprite: "s5Small",
+    mediumSprite: "s5Medium",
+    bossSprite: "s5Boss",
+    midbossSprite: "s5MidbossA",
+    midbossAltSprite: "s5MidbossB",
+    bossW: 620,
+    bossH: 320,
+    bossR: 118,
+    bossHp: 42750,
+    enemyHp: 1.95,
+    enemySpeed: 1.38,
+    fireRate: 0.56,
+    bossInterval: 0.105,
+    bulletSpeed: 1.42,
+    duration: 93,
+    waves: STAGE_5_WAVES,
   },
 ];
 
@@ -443,9 +513,15 @@ const player = {
   fireCooldown: 0,
   missileCooldown: 0,
   focus: false,
+  laserActive: false,
   score: 0,
   nextLifeScore: EXTRA_LIFE_INTERVAL,
   chain: 0,
+  comboTimer: 0,
+  hyperGauge: 0,
+  hyperStock: 0,
+  hyperTime: 0,
+  hyperLevel: 0,
   graze: 0,
   targetX: W / 2,
   targetY: H - 88,
@@ -463,6 +539,41 @@ const boss = {
 
 function currentStage() {
   return STAGES[Math.min(stageNo, STAGES.length) - 1];
+}
+
+function stageDuration() {
+  return currentStage().duration || STAGE_DURATION;
+}
+
+function stageWaves() {
+  return currentStage().waves || STAGE_WAVES;
+}
+
+function hyperAttackMultiplier() {
+  return player.hyperTime > 0 ? 1 + player.hyperLevel * 0.35 : 1;
+}
+
+function hyperRankMultiplier() {
+  return player.hyperTime > 0 ? 1 + player.hyperLevel * 0.08 : 1;
+}
+
+function comboHoldTime() {
+  return player.hyperTime > 0 ? 1.1 + player.hyperLevel * 0.34 : 0.75;
+}
+
+function addComboHits(amount = 1) {
+  const boosted = player.hyperTime > 0 ? amount * (1 + player.hyperLevel) : amount;
+  player.chain += boosted;
+  player.comboTimer = Math.max(player.comboTimer, comboHoldTime());
+}
+
+function addHyperGauge(amount) {
+  if (player.hyperStock >= HYPER_STOCK_MAX) return;
+  player.hyperGauge = Math.min(HYPER_GAUGE_MAX, player.hyperGauge + amount);
+  if (player.hyperGauge >= HYPER_GAUGE_MAX) {
+    player.hyperGauge = 0;
+    spawnHyperPickup();
+  }
 }
 
 function playBgm(name) {
@@ -539,9 +650,15 @@ function resetGame() {
   player.invuln = 2;
   player.fireCooldown = 0;
   player.missileCooldown = 0;
+  player.laserActive = false;
   player.score = 0;
   player.nextLifeScore = EXTRA_LIFE_INTERVAL;
   player.chain = 0;
+  player.comboTimer = 0;
+  player.hyperGauge = 0;
+  player.hyperStock = 0;
+  player.hyperTime = 0;
+  player.hyperLevel = 0;
   player.graze = 0;
   stageNo = 1;
   boss.x = W / 2;
@@ -715,7 +832,7 @@ window.addEventListener("keydown", (event) => {
     event.preventDefault();
     if (!running) startGame();
   }
-  if (event.code === "KeyX") useBomb();
+  if (event.code === "KeyX") useBombButton();
   if (event.code === "KeyP") paused = !paused;
 });
 window.addEventListener("keyup", (event) => keys.delete(event.code));
@@ -740,7 +857,7 @@ canvas.addEventListener("pointerdown", (event) => {
   ensureAudio();
   const p = pointerToGame(event);
   if (isTouchBombButton(p)) {
-    useBomb();
+    useBombButton();
     return;
   }
   pointerActive = true;
@@ -749,12 +866,16 @@ canvas.addEventListener("pointerdown", (event) => {
   pointerLastY = p.y;
   pointerDeltaX = 0;
   pointerDeltaY = 0;
+  pointerSwipeTimer = 0;
 });
 canvas.addEventListener("pointermove", (event) => {
   if (!pointerActive) return;
   const p = pointerToGame(event);
-  pointerDeltaX += p.x - pointerLastX;
-  pointerDeltaY += p.y - pointerLastY;
+  const dx = p.x - pointerLastX;
+  const dy = p.y - pointerLastY;
+  pointerDeltaX += dx;
+  pointerDeltaY += dy;
+  if (Math.hypot(dx, dy) > 0.25) pointerSwipeTimer = 0.12;
   pointerLastX = p.x;
   pointerLastY = p.y;
 });
@@ -762,11 +883,13 @@ canvas.addEventListener("pointerup", () => {
   pointerActive = false;
   pointerDeltaX = 0;
   pointerDeltaY = 0;
+  pointerSwipeTimer = 0;
 });
 canvas.addEventListener("pointercancel", () => {
   pointerActive = false;
   pointerDeltaX = 0;
   pointerDeltaY = 0;
+  pointerSwipeTimer = 0;
 });
 
 function loop(now) {
@@ -786,6 +909,10 @@ function update(dt) {
   if (phase === "boss") bossPhaseClock += dt;
   if (phase === "bossDeath") bossDeathClock += dt;
   if (phase === "gameover") gameOverClock += dt;
+  player.hyperTime = Math.max(0, player.hyperTime - dt);
+  if (player.hyperTime <= 0) player.hyperLevel = 0;
+  player.comboTimer = Math.max(0, player.comboTimer - dt * (player.hyperTime > 0 ? 0.55 : 1));
+  if (player.comboTimer <= 0) player.chain = 0;
   bulletClock += dt;
   enemyClock += dt;
   pickupClock += dt;
@@ -795,7 +922,7 @@ function update(dt) {
   player.invuln = Math.max(0, player.invuln - dt);
   boss.corePulse += dt;
   if (phase !== "gameover" && phase !== "credits" && phase !== "stageTransition") updatePlayer(dt);
-  if (phase === "stage" && phaseTimer >= STAGE_DURATION) beginSilencePhase();
+  if (phase === "stage" && phaseTimer >= stageDuration()) beginSilencePhase();
   if (phase === "silence" && phaseTimer > 4.2) beginBossPhase();
   if (phase === "stageTransition" && phaseTimer > 1.15) completeStageTransition();
   if (phase === "boss") updateBoss(dt);
@@ -810,6 +937,8 @@ function update(dt) {
 
 function updatePlayer(dt) {
   player.focus = keys.has("ShiftLeft") || keys.has("ShiftRight");
+  pointerSwipeTimer = Math.max(0, pointerSwipeTimer - dt);
+  player.laserActive = player.focus || pointerSwipeTimer > 0;
   let dx = 0;
   let dy = 0;
   if (keys.has("ArrowLeft") || keys.has("KeyA")) dx -= 1;
@@ -835,30 +964,32 @@ function updatePlayer(dt) {
   player.missileCooldown -= dt;
   if (player.fireCooldown <= 0) {
     firePlayer();
-    player.fireCooldown = player.focus ? 0.075 : 0.095;
+    player.fireCooldown = player.laserActive ? 0.075 : 0.095;
   }
 }
 
 function firePlayer() {
-  const spread = player.focus ? 11 : 25;
+  const damageMul = hyperAttackMultiplier();
+  const spread = player.laserActive ? 11 : 25;
   const offsets = [-spread, 0, spread];
   for (const ox of offsets) {
-    playerBullets.push({ x: player.x + ox, y: player.y - 22, vx: ox * 0.18, vy: -850, r: 4, damage: ox === 0 ? 12 : 7 });
+    playerBullets.push({ x: player.x + ox, y: player.y - 22, vx: ox * 0.18, vy: -850, r: 4, damage: (ox === 0 ? 12 : 7) * damageMul });
   }
   if (player.power >= 5) {
-    playerBullets.push({ x: player.x - 34, y: player.y - 8, vx: -38, vy: -730, r: 3, damage: 5 });
-    playerBullets.push({ x: player.x + 34, y: player.y - 8, vx: 38, vy: -730, r: 3, damage: 5 });
+    playerBullets.push({ x: player.x - 34, y: player.y - 8, vx: -38, vy: -730, r: 3, damage: 5 * damageMul });
+    playerBullets.push({ x: player.x + 34, y: player.y - 8, vx: 38, vy: -730, r: 3, damage: 5 * damageMul });
   }
   if (player.power >= 8 && player.missileCooldown <= 0) {
-    missiles.push({ x: player.x - 28, y: player.y + 4, vx: -130, vy: -330, r: 7, damage: 28, life: 2.8, turn: 7.5, smoke: 0 });
-    missiles.push({ x: player.x + 28, y: player.y + 4, vx: 130, vy: -330, r: 7, damage: 28, life: 2.8, turn: 7.5, smoke: 0 });
-    player.missileCooldown = player.focus ? 0.42 : 0.34;
+    missiles.push({ x: player.x - 28, y: player.y + 4, vx: -130, vy: -330, r: 7, damage: 28 * damageMul, life: 2.8, turn: 7.5, smoke: 0 });
+    missiles.push({ x: player.x + 28, y: player.y + 4, vx: 130, vy: -330, r: 7, damage: 28 * damageMul, life: 2.8, turn: 7.5, smoke: 0 });
+    player.missileCooldown = player.laserActive ? 0.42 : 0.34;
     playSfx("missile", 0.12);
   }
-  if (player.focus) {
-    beams.push({ x: player.x, y: player.y - 34, life: 0.1, max: 0.1, w: 18, damage: 5.2 });
-    beams.push({ x: player.x - 18, y: player.y - 28, life: 0.1, max: 0.1, w: 8, damage: 2.4 });
-    beams.push({ x: player.x + 18, y: player.y - 28, life: 0.1, max: 0.1, w: 8, damage: 2.4 });
+  if (player.laserActive) {
+    const hyperWidth = player.hyperTime > 0 ? 1 + player.hyperLevel * 0.12 : 1;
+    beams.push({ x: player.x, y: player.y - 34, life: 0.1, max: 0.1, w: 18 * hyperWidth, damage: 5.2 * damageMul });
+    beams.push({ x: player.x - 18, y: player.y - 28, life: 0.1, max: 0.1, w: 8 * hyperWidth, damage: 2.4 * damageMul });
+    beams.push({ x: player.x + 18, y: player.y - 28, life: 0.1, max: 0.1, w: 8 * hyperWidth, damage: 2.4 * damageMul });
   }
 }
 
@@ -975,11 +1106,12 @@ function crossingLasers() {
 function spawnBullet(x, y, angle, speed, color, r, kind) {
   if (enemyBullets.length >= MAX_ENEMY_BULLETS) return;
   const def = currentStage();
+  const rank = hyperRankMultiplier();
   enemyBullets.push({
     x,
     y,
-    vx: Math.cos(angle) * speed * def.bulletSpeed,
-    vy: Math.sin(angle) * speed * def.bulletSpeed,
+    vx: Math.cos(angle) * speed * def.bulletSpeed * rank,
+    vy: Math.sin(angle) * speed * def.bulletSpeed * rank,
     r,
     color,
     kind,
@@ -1001,8 +1133,9 @@ function updateSpawns(dt) {
 
 function updateStageSpawns() {
   const def = currentStage();
-  while (stageWaveIndex < STAGE_WAVES.length && phaseTimer >= STAGE_WAVES[stageWaveIndex].t) {
-    spawnStageWave(STAGE_WAVES[stageWaveIndex]);
+  const waves = stageWaves();
+  while (stageWaveIndex < waves.length && phaseTimer >= waves[stageWaveIndex].t) {
+    spawnStageWave(waves[stageWaveIndex]);
     stageWaveIndex++;
   }
   if (enemyClock > 1.15) {
@@ -1047,8 +1180,11 @@ function spawnStageWave(wave) {
   if (wave.type === "midboss") {
     spawnEnemy(W / 2, -150, 0, 68 * def.enemySpeed, 1, 1750, "midboss", def.midbossSprite);
   }
+  if (wave.type === "midboss2") {
+    spawnEnemy(W / 2, -160, 0, 74 * def.enemySpeed, -1, 2050, "midboss", def.midbossAltSprite || def.midbossSprite);
+  }
   if (wave.type === "item") {
-    const spriteMap = { power: "carrierPower", bomb: "carrierBomb", life: "carrierLife", score: "carrierScore" };
+    const spriteMap = { power: "carrierPower", bomb: "carrierBomb", life: "carrierLife", score: "carrierScore", hyper: "carrierScore" };
     const x = wave.drop === "bomb" ? W * 0.72 : wave.drop === "life" ? W * 0.28 : W / 2;
     spawnEnemy(x, -72, rand(-32, 32), 105 * def.enemySpeed, 1, 130, "carrier", spriteMap[wave.drop], wave.drop);
   }
@@ -1112,12 +1248,12 @@ function updateEntities(dt) {
       e.y += (210 - e.y) * Math.min(1, dt * 2);
       e.vy *= 0.96;
     }
-    const fireInterval = (e.size === "midboss" ? 0.34 : e.size === "carrier" ? 1.35 : e.size === "medium" ? 0.72 : 1.15) * currentStage().fireRate;
+    const fireInterval = ((e.size === "midboss" ? 0.34 : e.size === "carrier" ? 1.35 : e.size === "medium" ? 0.72 : 1.15) * currentStage().fireRate) / hyperRankMultiplier();
     if ((phase === "stage" || phase === "boss") && e.fireClock > fireInterval && e.x > 34 && e.x < W - 34 && e.y > 44 && e.y < H - 110) fireEnemy(e);
   }
   for (const p of pickups) {
     p.magnetDelay = Math.max(0, (p.magnetDelay || 0) - dt);
-    if (p.magnetDelay <= 0 && (player.focus || p.y > H * 0.62)) {
+    if (p.magnetDelay <= 0 && (player.laserActive || p.y > H * 0.62)) {
       const a = Math.atan2(player.y - p.y, player.x - p.x);
       p.vx = (p.vx || 0) * 0.88 + Math.cos(a) * 320 * 0.12;
       p.vy = p.vy * 0.88 + Math.sin(a) * 320 * 0.12;
@@ -1235,6 +1371,8 @@ function collide() {
   for (const beam of beams) {
     if (phase === "boss" && boss.visible && Math.abs(beam.x - boss.x) < boss.r * 0.9 && boss.y < beam.y) {
       damageBoss(beam.damage);
+      addComboHits(1);
+      addHyperGauge(4.5);
       if (Math.random() < 0.12) spawnHitSpark(beam.x + rand(-18, 18), boss.y + rand(-30, 30), "#bffcff", 0.6);
     }
     for (const e of enemies) {
@@ -1242,6 +1380,8 @@ function collide() {
       if (Math.abs(beam.x - e.x) < e.r + beam.w * 0.5 && e.y < beam.y + 20) {
         e.hp -= beam.damage * (e.size === "midboss" ? 0.85 : 1.2);
         e.hitFlash = 1;
+        addComboHits(1);
+        addHyperGauge(e.size === "midboss" ? 8 : 5);
         if (Math.random() < 0.16) spawnHitSpark(e.x + rand(-e.r, e.r), e.y, "#bffcff", e.size === "midboss" ? 0.85 : 0.55);
         if (e.hp <= 0) killEnemy(e);
       }
@@ -1304,7 +1444,7 @@ function collide() {
       b.graze = true;
       player.graze++;
       addScore(240);
-      player.chain++;
+      addComboHits(1);
       particles.push({ x: player.x, y: player.y, vx: rand(-60, 60), vy: rand(-90, 20), life: 0.35, color: "#8df8ff" });
     }
     if (player.invuln <= 0 && d < player.r + b.r) {
@@ -1316,6 +1456,7 @@ function collide() {
     const p = pickups[i];
     if (dist2(p, player) < (p.r + 18) ** 2) {
       if (p.type === "bomb") player.bombs = Math.min(4, player.bombs + 1);
+      else if (p.type === "hyper") player.hyperStock = Math.min(HYPER_STOCK_MAX, player.hyperStock + 1);
       else if (p.type === "life") player.lives = Math.min(9, player.lives + 1);
       else if (p.type === "score") addScore(50000);
       else player.power = Math.min(8, player.power + 1);
@@ -1330,7 +1471,7 @@ function damageBoss(amount) {
   if (phase !== "boss") return;
   boss.hp = Math.max(0, boss.hp - amount);
   addScore(amount * 23);
-  player.chain++;
+  addComboHits(1);
   if (Math.random() < 0.24) spawnHitSpark(boss.x + rand(-42, 42), boss.y + rand(-38, 38), "#ffdf65", 0.9);
   if (boss.hp <= 0) {
     addScore(100000);
@@ -1343,10 +1484,11 @@ function killEnemy(e) {
   e.dead = true;
   e.hp = -999;
   addScore(e.size === "midboss" ? 85000 : e.size === "medium" ? 26000 : e.size === "carrier" ? 16000 : 8200);
-  player.chain += e.size === "midboss" ? 24 : e.size === "medium" ? 9 : 4;
+  addComboHits(e.size === "midboss" ? 24 : e.size === "medium" ? 9 : 4);
   massiveExplosion(e.x, e.y, e.size === "midboss" ? 1.4 : e.size === "medium" ? 0.95 : 0.5);
   playSfx("explode", e.size === "midboss" ? 0.34 : e.size === "medium" ? 0.3 : 0.22);
   if (e.drop) scatterPickups(e.x, e.y, e.drop, 1);
+  if (e.size === "midboss") scatterPickups(e.x, e.y, "hyper", 1);
 }
 
 function scatterPickups(x, y, type, count) {
@@ -1361,6 +1503,20 @@ function scatterPickups(x, y, type, count) {
       magnetDelay: 0.45,
     });
   }
+}
+
+function spawnHyperPickup() {
+  pickups.push({
+    x: W / 2,
+    y: HYPER_ITEM_DROP_Y,
+    vx: rand(-36, 36),
+    vy: 72,
+    r: 13,
+    type: "hyper",
+    magnetDelay: 0.2,
+  });
+  spawnHitSpark(W / 2, HYPER_ITEM_DROP_Y, "#b46cff", 1.6);
+  playSfx("life", 0.24);
 }
 
 function spawnHitSpark(x, y, color = "#8df8ff", scale = 1) {
@@ -1400,6 +1556,33 @@ function showGameOverOverlay() {
   overlay.querySelector("p").textContent = `SCORE ${formatScore(player.score)}`;
   startButton.textContent = "RETRY";
   overlay.classList.remove("hidden");
+}
+
+function useBombButton() {
+  if (player.hyperStock > 0) {
+    useHyper();
+    return;
+  }
+  useBomb();
+}
+
+function useHyper() {
+  if (!running || player.hyperStock <= 0 || phase === "gameover" || phase === "credits") return;
+  const spent = player.hyperStock;
+  player.hyperStock = 0;
+  player.hyperLevel = spent;
+  player.hyperTime = HYPER_DURATION;
+  player.invuln = Math.max(player.invuln, phase === "boss" ? 120 / 60 : 80 / 60);
+  flash = 1.05;
+  shake = 24 + spent * 3;
+  playSfx("mega", 0.42 + spent * 0.05);
+  const removed = enemyBullets.splice(0, enemyBullets.length);
+  for (let i = 0; i < removed.length; i += 3) {
+    particles.push({ x: removed[i].x, y: removed[i].y, vx: rand(-210, 210), vy: rand(-250, 100), life: rand(0.42, 0.9), color: i % 2 ? "#b46cff" : "#8df8ff" });
+  }
+  shockwaves.push({ x: player.x, y: player.y, life: 0.85, max: 0.85, radius: 28, color: "#b46cff" });
+  shockwaves.push({ x: player.x, y: player.y, life: 1.15, max: 1.15, radius: 12, color: "#8df8ff" });
+  massiveExplosion(player.x, player.y - 80, 1.55 + spent * 0.16);
 }
 
 function useBomb() {
@@ -1473,13 +1656,18 @@ function drawBackground() {
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, W, H);
 
-  if (stageBackgroundSheet.complete && stageBackgroundSheet.naturalWidth) {
+  const bgSheet = def.bg.sheet === "stage5" ? stage5AssetSheet : stageBackgroundSheet;
+  if (bgSheet.complete && bgSheet.naturalWidth) {
     const tileH = H + 32;
     const rawScroll = phase === "stage" || phase === "silence" ? stageScroll * 0.2 : time * 5;
     const offset = rawScroll % tileH;
     const baseTile = Math.floor(rawScroll / tileH);
+    const sx = def.bg.sx + (def.bg.sheet === "stage5" ? 0 : 12);
+    const sy = def.bg.sy + (def.bg.sheet === "stage5" ? 0 : 12);
+    const sw = def.bg.sw || 603;
+    const sh = def.bg.sh || 603;
     ctx.save();
-    ctx.globalAlpha = def.no === 1 ? 0.52 : 0.74;
+    ctx.globalAlpha = def.no === 1 ? 0.52 : def.no === 5 ? 0.82 : 0.74;
     for (let i = -1; i <= 1; i++) {
       const y = offset + i * tileH - tileH;
       const flip = Math.abs(baseTile + i) % 2 === 1;
@@ -1487,10 +1675,10 @@ function drawBackground() {
         ctx.save();
         ctx.translate(0, y + tileH);
         ctx.scale(1, -1);
-        ctx.drawImage(stageBackgroundSheet, def.bg.sx + 12, def.bg.sy + 12, 603, 603, 0, 0, W, tileH);
+        ctx.drawImage(bgSheet, sx, sy, sw, sh, 0, 0, W, tileH);
         ctx.restore();
       } else {
-        ctx.drawImage(stageBackgroundSheet, def.bg.sx + 12, def.bg.sy + 12, 603, 603, 0, y, W, tileH);
+        ctx.drawImage(bgSheet, sx, sy, sw, sh, 0, y, W, tileH);
       }
     }
     ctx.restore();
@@ -1609,8 +1797,8 @@ function drawColonyProp(s, x, y, w, h, rotation = 0, centered = false, alpha = 0
 
 function drawBoss() {
   const def = currentStage();
-  const sprite = sprites[def.bossSprite] || stageAssetSprites[def.bossSprite];
-  const sheet = sprites[def.bossSprite] ? spriteSheet : stageSpriteSheet;
+  const sprite = sprites[def.bossSprite] || stageAssetSprites[def.bossSprite] || stage5AssetSprites[def.bossSprite];
+  const sheet = sprites[def.bossSprite] ? spriteSheet : stageAssetSprites[def.bossSprite] ? stageSpriteSheet : stage5AssetSheet;
   if (sheet.complete && sheet.naturalWidth && sprite) {
     ctx.save();
     ctx.translate(boss.x, boss.y);
@@ -1677,8 +1865,8 @@ function drawWingSpike(x, y, a, color) {
 
 function drawEnemies() {
   for (const e of enemies) {
-    const sprite = sprites[e.spriteKey] || stageAssetSprites[e.spriteKey] || midbossItemSprites[e.spriteKey];
-    const sheet = sprites[e.spriteKey] ? spriteSheet : stageAssetSprites[e.spriteKey] ? stageSpriteSheet : midbossItemSheet;
+    const sprite = sprites[e.spriteKey] || stageAssetSprites[e.spriteKey] || stage5AssetSprites[e.spriteKey] || midbossItemSprites[e.spriteKey];
+    const sheet = sprites[e.spriteKey] ? spriteSheet : stageAssetSprites[e.spriteKey] ? stageSpriteSheet : stage5AssetSprites[e.spriteKey] ? stage5AssetSheet : midbossItemSheet;
     if (sheet.complete && sheet.naturalWidth && sprite) {
       const w = e.size === "midboss" ? 238 : e.size === "carrier" ? 92 : e.size === "medium" ? 138 : 88;
       const h = e.size === "midboss" ? 244 : e.size === "carrier" ? 92 : e.size === "medium" ? 116 : 78;
@@ -1730,7 +1918,7 @@ function drawPlayer() {
     ctx.shadowBlur = 22;
     drawSprite(sprites.player, 0, 0, 76, 104, 0, true);
     ctx.shadowBlur = 0;
-    if (player.focus) {
+    if (player.laserActive) {
       ctx.strokeStyle = "rgba(255, 87, 217, 0.86)";
       ctx.lineWidth = 2;
       ctx.beginPath();
@@ -1763,7 +1951,7 @@ function drawPlayer() {
   ctx.fillStyle = "#ff9652";
   ctx.fillRect(-4, 18, 8, 16);
   ctx.shadowBlur = 0;
-  if (player.focus) {
+  if (player.laserActive) {
     ctx.strokeStyle = "rgba(255, 87, 217, 0.8)";
     ctx.lineWidth = 2;
     ctx.beginPath();
@@ -1962,10 +2150,10 @@ function drawPickups() {
     const sprite = itemSprites[p.type] || itemSprites.power;
     ctx.save();
     ctx.translate(p.x, p.y);
-    const color = p.type === "bomb" ? "#ff9b32" : p.type === "life" ? "#ff5f82" : p.type === "score" ? "#ffe66d" : "#69f6ff";
+    const color = p.type === "hyper" ? "#b46cff" : p.type === "bomb" ? "#ff9b32" : p.type === "life" ? "#ff5f82" : p.type === "score" ? "#ffe66d" : "#69f6ff";
     ctx.shadowColor = color;
     ctx.shadowBlur = 18;
-    if (itemSheet.complete && itemSheet.naturalWidth && sprite) {
+    if (p.type !== "hyper" && itemSheet.complete && itemSheet.naturalWidth && sprite) {
       ctx.rotate(Math.sin(time * 3) * 0.12);
       drawSpriteFrom(itemSheet, sprite, 0, 0, p.type === "score" ? 52 : 48, p.type === "life" ? 50 : 48, 0, true);
       ctx.restore();
@@ -1984,6 +2172,11 @@ function drawPickups() {
     if (p.type === "life") {
       ctx.fillRect(-8, -2, 16, 4);
       ctx.fillRect(-2, -8, 4, 16);
+    } else if (p.type === "hyper") {
+      ctx.font = "900 15px Segoe UI, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("H", 0, 1);
     } else if (p.type === "bomb") {
       ctx.beginPath();
       ctx.arc(0, 0, 6, 0, TAU);
@@ -2131,8 +2324,11 @@ function drawHud() {
   if (phase === "boss" || phase === "bossDeath") {
     drawBar(W / 2 - 150, 36, 300, 18, boss.hp / boss.maxHp, "#f04b4d", "#79eaff");
   } else if (phase === "stage" || phase === "silence") {
-    drawBar(W / 2 - 150, 36, 300, 18, phaseTimer / STAGE_DURATION, "#53dfff", "#79eaff");
+    drawBar(W / 2 - 150, 36, 300, 18, phaseTimer / stageDuration(), "#53dfff", "#79eaff");
   }
+  drawBar(12, 72, 184, 14, player.hyperGauge / HYPER_GAUGE_MAX, "#b46cff", "#d7b7ff");
+  ctx.textAlign = "left";
+  ctx.fillText(`HYPER: ${player.hyperStock}/${HYPER_STOCK_MAX}${player.hyperTime > 0 ? ` x${player.hyperLevel}` : ""}`, 12, 108);
   ctx.textAlign = "right";
   ctx.fillText(phase === "boss" || phase === "bossDeath" ? "BOSS" : "PHASE", W - 14, 28);
   if (phase === "boss") drawBar(W - 214, 38, 200, 16, boss.hp / boss.maxHp, "#ff842f", "#77eaff");
@@ -2144,7 +2340,8 @@ function drawHud() {
 function drawTouchControls() {
   if (!IS_MOBILE_BROWSER || phase === "credits") return;
   const b = touchBombButton;
-  const ready = running && player.bombs > 0 && phase !== "gameover";
+  const hyperReady = player.hyperStock > 0;
+  const ready = running && (player.bombs > 0 || hyperReady) && phase !== "gameover";
   ctx.save();
   ctx.globalAlpha = ready ? 0.86 : 0.42;
   ctx.fillStyle = "rgba(8, 18, 36, 0.82)";
@@ -2157,9 +2354,9 @@ function drawTouchControls() {
   ctx.shadowBlur = ready ? 13 : 0;
   ctx.textAlign = "center";
   ctx.font = "900 24px Segoe UI, sans-serif";
-  ctx.fillText("BOMB", b.x + b.w / 2, b.y + 31);
+  ctx.fillText(hyperReady ? "HYPER" : "BOMB", b.x + b.w / 2, b.y + 31);
   ctx.font = "900 18px Segoe UI, sans-serif";
-  ctx.fillText(`${player.bombs}`, b.x + b.w / 2, b.y + 56);
+  ctx.fillText(`${hyperReady ? player.hyperStock : player.bombs}`, b.x + b.w / 2, b.y + 56);
   ctx.restore();
 }
 
