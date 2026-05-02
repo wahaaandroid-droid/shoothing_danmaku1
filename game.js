@@ -167,15 +167,16 @@ const hyperSe = {
   loop: new Audio("SE/hyper発動中.m4a"),
 };
 const gameSe = {
-  explodeSmall: createAudioPool("SE/小爆発.m4a", 5, 0.44),
-  explodeMedium: createAudioPool("SE/中爆発.m4a", 4, 0.52),
+  explodeSmall: createAudioPool("SE/小爆発.m4a", 5, 0.28),
+  explodeMedium: createAudioPool("SE/中爆発.m4a", 4, 0.34),
   explodeLarge: createAudioPool("SE/大爆発.m4a", 3, 0.86),
-  enemyHit: createAudioPool("SE/敵に弾が当たった時のSE.mp3", 8, 0.62),
+  enemyHit: createAudioPool("SE/敵に弾が当たった時のSE.mp3", 8, 0.44),
   bombStart: createAudioPool("SE/ボム発動音.mp3", 3, 0.82),
   playerHit: createAudioPool("SE/自機被弾.mp3", 3, 0.86),
 };
 const seMix = {
   explosionTimes: [],
+  impactTimes: [],
 };
 let currentBgm = null;
 let audioContext = null;
@@ -311,6 +312,21 @@ function playExplosionPool(pool, volume = 1) {
   playAudioPool(pool, volume * explosionStackGain());
 }
 
+function impactStackGain() {
+  const now = performance.now() / 1000;
+  seMix.impactTimes = seMix.impactTimes.filter((t) => now - t < 0.08);
+  const stack = seMix.impactTimes.length;
+  seMix.impactTimes.push(now);
+  if (stack === 0) return 1;
+  if (stack === 1) return 0.62;
+  if (stack === 2) return 0.42;
+  return 0.26;
+}
+
+function playEnemyHitSe(volume = 0.16) {
+  playAudioPool(gameSe.enemyHit, volume * impactStackGain());
+}
+
 function playExplosionSe(volume = 0.3) {
   if (volume >= 0.42) {
     playExplosionPool(gameSe.explodeLarge, volume / 0.5);
@@ -323,7 +339,7 @@ function playExplosionSe(volume = 0.3) {
 
 function playSfx(type, volume = 0.35) {
   if (type === "hit") {
-    playAudioPool(gameSe.enemyHit, volume / 0.16);
+    playEnemyHitSe(volume / 0.26);
     return;
   }
   if (type === "explode") {
@@ -331,7 +347,7 @@ function playSfx(type, volume = 0.35) {
     return;
   }
   if (type === "missilehit") {
-    playAudioPool(gameSe.enemyHit, volume / 0.24);
+    playEnemyHitSe(volume / 0.34);
     return;
   }
   if (type === "mega") {
@@ -2152,6 +2168,7 @@ function collide() {
   }
   for (let i = pickups.length - 1; i >= 0; i--) {
     const p = pickups[i];
+    if ((p.magnetDelay || 0) > 0) continue;
     if (dist2(p, player) < (p.r + 18) ** 2) {
       if (p.type === "bomb") player.bombs = Math.min(4, player.bombs + 1);
       else if (p.type === "hyper") player.hyperStock = Math.min(HYPER_STOCK_MAX, player.hyperStock + 1);
