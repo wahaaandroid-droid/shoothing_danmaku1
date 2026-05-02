@@ -205,6 +205,7 @@ let currentWeaponSe = null;
 let audioContext = null;
 let bgmUnlocked = false;
 let bgmPlaySerial = 0;
+let pendingBgmName = null;
 const touchBombButton = { x: W - 176, y: H - 126, w: 154, h: 72 };
 for (const track of Object.values(bgm)) {
   track.loop = true;
@@ -250,6 +251,12 @@ function unlockBgm() {
   for (const pool of Object.values(gameSe)) {
     for (const track of pool.tracks) track.load();
   }
+}
+
+function requestMediaLoad(track) {
+  if (!track || track.loadRequested) return;
+  track.loadRequested = true;
+  track.load();
 }
 
 function makeNoiseSource(duration) {
@@ -320,7 +327,7 @@ function playAudioPool(pool, volume = 1) {
   if (!pool || !pool.tracks.length) return;
   const track = pool.tracks[pool.index];
   if (IS_MOBILE_BROWSER && !mediaReady(track)) {
-    track.load();
+    requestMediaLoad(track);
     return;
   }
   pool.index = (pool.index + 1) % pool.tracks.length;
@@ -741,6 +748,15 @@ function hyperRankMultiplier() {
   return player.hyperTime > 0 ? 1 + player.hyperLevel * 0.08 : 1;
 }
 
+function normalizeHyperRankedBullets() {
+  for (const b of enemyBullets) {
+    if (!b.rank || b.rank <= 1) continue;
+    b.vx /= b.rank;
+    b.vy /= b.rank;
+    b.rank = 1;
+  }
+}
+
 function comboHoldTime() {
   return COMBO_HOLD_SECONDS;
 }
@@ -782,10 +798,12 @@ function playBgm(name) {
   if (!next) return;
   const playSerial = ++bgmPlaySerial;
   if (IS_MOBILE_BROWSER && !mediaReady(next)) {
-    next.load();
+    pendingBgmName = name;
+    requestMediaLoad(next);
     currentBgm = null;
     return;
   }
+  pendingBgmName = null;
   if (bgmFade) {
     resetBgmTrack(bgmFade.track);
     bgmFade = null;
@@ -807,13 +825,14 @@ function playBgm(name) {
 function stopBgm() {
   bgmPlaySerial++;
   bgmFade = null;
+  pendingBgmName = null;
   currentBgm = null;
   resetOtherBgmTracks();
 }
 
 function playHyperStartSe() {
   if (IS_MOBILE_BROWSER && !mediaReady(hyperSe.start)) {
-    hyperSe.start.load();
+    requestMediaLoad(hyperSe.start);
     return;
   }
   hyperSe.start.pause();
@@ -839,7 +858,7 @@ function updateWeaponLoopSe() {
     currentWeaponSe.currentTime = 0;
   }
   if (next && IS_MOBILE_BROWSER && !mediaReady(next)) {
-    next.load();
+    requestMediaLoad(next);
     currentWeaponSe = null;
     return;
   }
@@ -862,6 +881,7 @@ function stopHyperLoopSe() {
 function fadeOutBgm(duration = 2.2) {
   if (!currentBgm) return;
   bgmPlaySerial++;
+  pendingBgmName = null;
   if (bgmFade) resetBgmTrack(bgmFade.track);
   resetOtherBgmTracks(currentBgm);
   bgmFade = { track: currentBgm, duration, timer: 0, from: currentBgm.volume || BGM_VOLUME };
@@ -869,6 +889,7 @@ function fadeOutBgm(duration = 2.2) {
 }
 
 function updateBgmFade(dt) {
+  retryPendingBgm();
   if (!bgmFade) return;
   bgmFade.timer += dt;
   const pct = clamp(bgmFade.timer / bgmFade.duration, 0, 1);
@@ -969,6 +990,22 @@ function startGame() {
   overlay.classList.add("hidden");
   last = performance.now();
   requestAnimationFrame(loop);
+}
+
+function retryPendingBgm() {
+  if (!pendingBgmName) return;
+  const pending = bgm[pendingBgmName];
+  if (!pending) {
+    pendingBgmName = null;
+    return;
+  }
+  if (IS_MOBILE_BROWSER && !mediaReady(pending)) {
+    requestMediaLoad(pending);
+    return;
+  }
+  const name = pendingBgmName;
+  pendingBgmName = null;
+  playBgm(name);
 }
 
 function beginStage() {
@@ -1205,6 +1242,7 @@ function update(dt) {
   const wasHyperActive = player.hyperTime > 0;
   player.hyperTime = Math.max(0, player.hyperTime - dt);
   if (wasHyperActive && player.hyperTime <= 0) {
+    normalizeHyperRankedBullets();
     player.hyperLevel = 0;
     stopHyperLoopSe();
   }
@@ -1714,6 +1752,7 @@ function spawnBullet(x, y, angle, speed, color, r, kind) {
     r,
     color,
     kind,
+    rank,
     age: 0,
     graze: false,
   });
