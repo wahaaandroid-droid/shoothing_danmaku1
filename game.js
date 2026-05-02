@@ -167,10 +167,10 @@ const hyperSe = {
   loop: new Audio("SE/hyper発動中.m4a"),
 };
 const gameSe = {
-  explodeSmall: createAudioPool("SE/小爆発.m4a", 5, 0.28),
+  explodeSmall: createAudioPool("SE/小爆発.m4a", 5, 0.18),
   explodeMedium: createAudioPool("SE/中爆発.m4a", 4, 0.34),
   explodeLarge: createAudioPool("SE/大爆発.m4a", 3, 0.86),
-  enemyHit: createAudioPool("SE/敵に弾が当たった時のSE.mp3", 8, 0.44),
+  enemyHit: createAudioPool("SE/敵に弾が当たった時のSE.mp3", 8, 0.62),
   bombStart: createAudioPool("SE/ボム発動音.mp3", 3, 0.82),
   playerHit: createAudioPool("SE/自機被弾.mp3", 3, 0.86),
 };
@@ -339,7 +339,7 @@ function playExplosionSe(volume = 0.3) {
 
 function playSfx(type, volume = 0.35) {
   if (type === "hit") {
-    playEnemyHitSe(volume / 0.26);
+    playEnemyHitSe(volume / 0.16);
     return;
   }
   if (type === "explode") {
@@ -347,7 +347,7 @@ function playSfx(type, volume = 0.35) {
     return;
   }
   if (type === "missilehit") {
-    playEnemyHitSe(volume / 0.34);
+    playEnemyHitSe(volume / 0.24);
     return;
   }
   if (type === "mega") {
@@ -2238,18 +2238,21 @@ function killEnemy(e) {
   }
 }
 
-function scatterPickups(x, y, type, count) {
+function scatterPickups(x, y, type, count, options = {}) {
+  const speedMultiplier = options.speedMultiplier || 1;
+  const magnetDelay = options.magnetDelay ?? 0.45;
   for (let i = 0; i < count; i++) {
     if (type === "life" && lifePickupsThisStage >= 1) return;
     if (type === "life") lifePickupsThisStage++;
+    const a = (i / count) * TAU - Math.PI / 2 + (options.angleOffset || 0);
     pickups.push({
       x,
       y,
-      vx: Math.cos((i / count) * TAU - Math.PI / 2) * rand(55, 170),
-      vy: Math.sin((i / count) * TAU - Math.PI / 2) * rand(50, 150) - 30,
+      vx: Math.cos(a) * rand(55, 170) * speedMultiplier,
+      vy: Math.sin(a) * rand(50, 150) * speedMultiplier - (options.upwardBoost ?? 30),
       r: type === "life" ? 12 : 9,
       type,
-      magnetDelay: 0.45,
+      magnetDelay,
     });
   }
 }
@@ -2289,7 +2292,12 @@ function hitPlayer() {
   massiveExplosion(player.x, player.y, 1.15);
   shockwaves.push({ x: player.x, y: player.y, life: 0.7, max: 0.7, radius: 22, color: "#ff5f91" });
   playSfx("playerhit", 0.42);
-  scatterPickups(player.x, player.y, "power", lostPower + 3);
+  scatterPickups(player.x, player.y, "power", lostPower + 3, {
+    speedMultiplier: 2.25,
+    magnetDelay: 1.35,
+    upwardBoost: 90,
+    angleOffset: Math.PI / 7,
+  });
   enemyBullets.length = Math.floor(enemyBullets.length * 0.42);
   if (player.lives <= 0) {
     phase = "gameover";
