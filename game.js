@@ -611,7 +611,7 @@ const STAGES = [
     enemySpeed: 1,
     fireRate: 1.18,
     bossInterval: 0.24,
-    bulletSpeed: 1,
+    bulletSpeed: 1.14,
   },
   {
     no: 2,
@@ -632,7 +632,7 @@ const STAGES = [
     enemySpeed: 1.08,
     fireRate: 1.16,
     bossInterval: 0.245,
-    bulletSpeed: 1.08,
+    bulletSpeed: 1.25,
   },
   {
     no: 3,
@@ -653,7 +653,7 @@ const STAGES = [
     enemySpeed: 1.15,
     fireRate: 1.14,
     bossInterval: 0.255,
-    bulletSpeed: 1.16,
+    bulletSpeed: 1.37,
   },
   {
     no: 4,
@@ -674,7 +674,7 @@ const STAGES = [
     enemySpeed: 1.24,
     fireRate: 1.12,
     bossInterval: 0.265,
-    bulletSpeed: 1.25,
+    bulletSpeed: 1.49,
   },
   {
     no: 5,
@@ -695,7 +695,7 @@ const STAGES = [
     enemySpeed: 1.38,
     fireRate: 1.08,
     bossInterval: 0.28,
-    bulletSpeed: 1.42,
+    bulletSpeed: 1.68,
     duration: 93,
     waves: STAGE_5_WAVES,
   },
