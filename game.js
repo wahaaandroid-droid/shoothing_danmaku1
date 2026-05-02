@@ -162,14 +162,43 @@ const bgm = {
   boss5: new Audio("BGM/BGM_Stage5BOSS_黒鋼の終幕.mp3"),
   allclear: new Audio("BGM/BGM_ALLCLEAR_残響のクリア.mp3"),
 };
+const hyperSe = {
+  start: new Audio("SE/hyper発動時のSE.m4a"),
+  loop: new Audio("SE/hyper発動中.m4a"),
+};
+const gameSe = {
+  explodeSmall: createAudioPool("SE/小爆発.m4a", 5, 0.74),
+  explodeMedium: createAudioPool("SE/中爆発.m4a", 4, 0.78),
+  explodeLarge: createAudioPool("SE/大爆発.m4a", 3, 0.86),
+  enemyHit: createAudioPool("SE/敵に弾が当たった時のSE.mp3", 8, 0.62),
+};
 let currentBgm = null;
 let audioContext = null;
 let bgmUnlocked = false;
+let bgmPlaySerial = 0;
 const touchBombButton = { x: W - 176, y: H - 126, w: 154, h: 72 };
 for (const track of Object.values(bgm)) {
   track.loop = true;
   track.volume = 0.58;
   track.preload = "auto";
+}
+hyperSe.start.volume = 0.88;
+hyperSe.start.preload = "auto";
+hyperSe.loop.loop = true;
+hyperSe.loop.volume = 0.62;
+hyperSe.loop.preload = "auto";
+
+function createAudioPool(src, size = 4, baseVolume = 1) {
+  return {
+    index: 0,
+    baseVolume,
+    tracks: Array.from({ length: size }, () => {
+      const audio = new Audio(src);
+      audio.preload = "auto";
+      audio.volume = baseVolume;
+      return audio;
+    }),
+  };
 }
 
 function ensureAudio() {
@@ -181,20 +210,10 @@ function ensureAudio() {
 function unlockBgm() {
   if (bgmUnlocked) return;
   bgmUnlocked = true;
-  for (const key of Object.keys(bgm).filter((name) => name !== "stage1")) {
-    const track = bgm[key];
-    const originalMuted = track.muted;
-    track.muted = true;
-    track.load();
-    track.play()
-      .then(() => {
-        track.pause();
-        track.currentTime = 0;
-        track.muted = originalMuted;
-      })
-      .catch(() => {
-        track.muted = originalMuted;
-      });
+  for (const track of Object.values(bgm)) track.load();
+  for (const track of Object.values(hyperSe)) track.load();
+  for (const pool of Object.values(gameSe)) {
+    for (const track of pool.tracks) track.load();
   }
 }
 
@@ -262,7 +281,45 @@ function addNoiseLayer(now, {
   noise.stop(now + duration + 0.02);
 }
 
+function playAudioPool(pool, volume = 1) {
+  if (!pool || !pool.tracks.length) return;
+  const track = pool.tracks[pool.index];
+  pool.index = (pool.index + 1) % pool.tracks.length;
+  track.pause();
+  track.currentTime = 0;
+  track.volume = clamp(pool.baseVolume * volume, 0, 1);
+  track.play().catch(() => {});
+}
+
+function playExplosionSe(volume = 0.3) {
+  if (volume >= 0.42) {
+    playAudioPool(gameSe.explodeLarge, volume / 0.5);
+  } else if (volume >= 0.28) {
+    playAudioPool(gameSe.explodeMedium, volume / 0.34);
+  } else {
+    playAudioPool(gameSe.explodeSmall, volume / 0.24);
+  }
+}
+
 function playSfx(type, volume = 0.35) {
+  if (type === "hit") {
+    playAudioPool(gameSe.enemyHit, volume / 0.16);
+    return;
+  }
+  if (type === "explode") {
+    playExplosionSe(volume);
+    return;
+  }
+  if (type === "missilehit") {
+    playAudioPool(gameSe.explodeMedium, volume / 0.18);
+    return;
+  }
+  if (type === "mega") {
+    playAudioPool(gameSe.explodeLarge, volume / 0.46);
+  }
+  if (type === "bomb") {
+    playAudioPool(gameSe.explodeLarge, volume / 0.5);
+  }
   if (!audioContext) return;
   try {
     const now = audioContext.currentTime;
@@ -598,29 +655,69 @@ function addHyperGauge(amount) {
   }
 }
 
+function resetBgmTrack(track) {
+  track.pause();
+  track.currentTime = 0;
+  track.volume = 0.58;
+  track.muted = false;
+}
+
+function resetOtherBgmTracks(keep = null) {
+  for (const track of Object.values(bgm)) {
+    if (track !== keep) resetBgmTrack(track);
+  }
+}
+
 function playBgm(name) {
   const next = bgm[name];
-  if (!next || currentBgm === next) return;
+  if (!next) return;
+  const playSerial = ++bgmPlaySerial;
+  if (bgmFade) {
+    resetBgmTrack(bgmFade.track);
+    bgmFade = null;
+  }
+  resetOtherBgmTracks(next);
   next.muted = false;
   next.volume = 0.58;
-  if (currentBgm) {
-    currentBgm.pause();
-    currentBgm.currentTime = 0;
-  }
   currentBgm = next;
   currentBgm.currentTime = 0;
-  currentBgm.play().catch(() => {});
+  currentBgm.play()
+    .then(() => {
+      if (playSerial === bgmPlaySerial && currentBgm === next) resetOtherBgmTracks(next);
+    })
+    .catch(() => {
+      if (playSerial === bgmPlaySerial && currentBgm === next) currentBgm = null;
+    });
 }
 
 function stopBgm() {
-  if (!currentBgm) return;
-  currentBgm.pause();
-  currentBgm.currentTime = 0;
+  bgmPlaySerial++;
+  bgmFade = null;
   currentBgm = null;
+  resetOtherBgmTracks();
+}
+
+function playHyperStartSe() {
+  hyperSe.start.pause();
+  hyperSe.start.currentTime = 0;
+  hyperSe.start.play().catch(() => {});
+}
+
+function startHyperLoopSe() {
+  hyperSe.loop.currentTime = 0;
+  hyperSe.loop.play().catch(() => {});
+}
+
+function stopHyperLoopSe() {
+  hyperSe.loop.pause();
+  hyperSe.loop.currentTime = 0;
 }
 
 function fadeOutBgm(duration = 2.2) {
   if (!currentBgm) return;
+  bgmPlaySerial++;
+  if (bgmFade) resetBgmTrack(bgmFade.track);
+  resetOtherBgmTracks(currentBgm);
   bgmFade = { track: currentBgm, duration, timer: 0, from: currentBgm.volume || 0.58 };
   currentBgm = null;
 }
@@ -698,6 +795,7 @@ function resetGame() {
   bgmFade = null;
   stageFade = 0;
   nextStageNo = 1;
+  stopHyperLoopSe();
   bulletClock = 0;
   enemyClock = 0;
   pickupClock = 0;
@@ -717,11 +815,11 @@ function resetGame() {
 }
 
 function startGame() {
+  if (running) return;
   ensureAudio();
   resetGame();
   running = true;
   paused = false;
-  playBgm(currentStage().stageBgm);
   overlay.classList.add("hidden");
   last = performance.now();
   requestAnimationFrame(loop);
@@ -841,6 +939,9 @@ function beginCredits() {
   phaseTimer = 0;
   phaseBanner = 0;
   creditScroll = H + 80;
+  player.hyperTime = 0;
+  player.hyperLevel = 0;
+  stopHyperLoopSe();
   enemyBullets.length = 0;
   enemies.length = 0;
   playerBullets.length = 0;
@@ -932,8 +1033,12 @@ function update(dt) {
   if (phase === "boss") bossPhaseClock += dt;
   if (phase === "bossDeath") bossDeathClock += dt;
   if (phase === "gameover") gameOverClock += dt;
+  const wasHyperActive = player.hyperTime > 0;
   player.hyperTime = Math.max(0, player.hyperTime - dt);
-  if (player.hyperTime <= 0) player.hyperLevel = 0;
+  if (wasHyperActive && player.hyperTime <= 0) {
+    player.hyperLevel = 0;
+    stopHyperLoopSe();
+  }
   player.comboTimer = Math.max(0, player.comboTimer - dt * comboDecayRate());
   if (player.comboTimer <= 0) player.chain = 0;
   bulletClock += dt;
@@ -1258,13 +1363,18 @@ function s2BurstRing() {
 
 // 上下二重カーテン: S1カーテンの強化版、上下から挟み込む
 function s2TwinCurtain() {
-  const lanes = 11;
+  const cadence = Math.floor(bossPhaseClock / currentStage().bossInterval);
+  if (cadence % 2 === 1) return;
+  const lanes = 7;
   for (let i = 0; i < lanes; i++) {
-    const x = 50 + i * ((W - 100) / (lanes - 1));
-    const swayTop = Math.sin(time * 2.2 + i * 0.8) * 0.22;
-    const swayBot = Math.sin(time * 1.8 + i * 1.1) * 0.18;
-    spawnBullet(x, 0,        Math.PI / 2 + swayTop, 102, "#ff7a30", 7, "ring");
-    spawnBullet(x, H * 0.15, Math.PI / 2 + swayBot,  88, "#ff4fcf", 7, "ring");
+    if (i === Math.floor(lanes / 2)) continue;
+    const x = 74 + i * ((W - 148) / (lanes - 1));
+    const swayTop = Math.sin(time * 1.8 + i * 0.85) * 0.14;
+    spawnBullet(x, 0, Math.PI / 2 + swayTop, 90, "#ff7a30", 6, "ring");
+    if (i % 2 === 0) {
+      const swayBot = Math.sin(time * 1.5 + i * 1.1) * 0.11;
+      spawnBullet(x + 34, H * 0.13, Math.PI / 2 + swayBot, 74, "#ff4fcf", 6, "ring");
+    }
   }
 }
 
@@ -2145,6 +2255,9 @@ function hitPlayer() {
     phaseTimer = 0;
     gameOverClock = 0;
     player.invuln = 999;
+    player.hyperTime = 0;
+    player.hyperLevel = 0;
+    stopHyperLoopSe();
     fadeOutBgm(2.4);
   }
 }
@@ -2172,16 +2285,34 @@ function useHyper() {
   player.hyperLevel = spent;
   player.hyperTime = HYPER_DURATION;
   player.invuln = Math.max(player.invuln, phase === "boss" ? 120 / 60 : 80 / 60);
-  flash = 1.05;
-  shake = 24 + spent * 3;
-  playSfx("mega", 0.42 + spent * 0.05);
+  flash = 0.72;
+  shake = 14 + spent * 2;
+  playHyperStartSe();
+  startHyperLoopSe();
   const removed = enemyBullets.splice(0, enemyBullets.length);
   for (let i = 0; i < removed.length; i += 3) {
     particles.push({ x: removed[i].x, y: removed[i].y, vx: rand(-210, 210), vy: rand(-250, 100), life: rand(0.42, 0.9), color: i % 2 ? "#b46cff" : "#8df8ff" });
   }
-  shockwaves.push({ x: player.x, y: player.y, life: 0.85, max: 0.85, radius: 28, color: "#b46cff" });
-  shockwaves.push({ x: player.x, y: player.y, life: 1.15, max: 1.15, radius: 12, color: "#8df8ff" });
-  massiveExplosion(player.x, player.y - 80, 1.55 + spent * 0.16);
+  hyperSurgeEffect(spent);
+}
+
+function hyperSurgeEffect(level) {
+  shockwaves.push({ x: player.x, y: player.y, life: 0.72, max: 0.72, radius: 18, color: "#d7b7ff" });
+  shockwaves.push({ x: player.x, y: player.y, life: 1.05, max: 1.05, radius: 44, color: "#ffe66d" });
+  shockwaves.push({ x: player.x, y: player.y, life: 1.28, max: 1.28, radius: 8, color: "#8df8ff" });
+  for (let i = 0; i < 54 + level * 10; i++) {
+    const a = (i / (54 + level * 10)) * TAU + rand(-0.08, 0.08);
+    const speed = rand(120, 330) * (i % 3 === 0 ? 1.25 : 1);
+    const color = i % 4 === 0 ? "#ffe66d" : i % 4 === 1 ? "#d7b7ff" : i % 4 === 2 ? "#8df8ff" : "#b46cff";
+    particles.push({
+      x: player.x + Math.cos(a) * rand(8, 34),
+      y: player.y + Math.sin(a) * rand(8, 34),
+      vx: Math.cos(a + Math.PI * 0.5) * speed * 0.35 + Math.cos(a) * speed,
+      vy: Math.sin(a + Math.PI * 0.5) * speed * 0.35 + Math.sin(a) * speed,
+      life: rand(0.45, 1.05),
+      color,
+    });
+  }
 }
 
 function useBomb() {
@@ -2508,11 +2639,38 @@ function drawEnemies() {
   }
 }
 
+function drawHyperAura() {
+  if (player.hyperTime <= 0) return;
+  const pulse = 0.5 + Math.sin(time * 10) * 0.5;
+  const remain = clamp(player.hyperTime / HYPER_DURATION, 0, 1);
+  ctx.save();
+  ctx.globalCompositeOperation = "screen";
+  ctx.globalAlpha = 0.35 + pulse * 0.25;
+  ctx.shadowColor = "#ffe66d";
+  ctx.shadowBlur = 28 + pulse * 16;
+  ctx.strokeStyle = "rgba(255, 230, 109, 0.78)";
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.arc(0, 0, 38 + pulse * 8, 0, TAU);
+  ctx.stroke();
+  ctx.globalAlpha = 0.22 + remain * 0.18;
+  ctx.strokeStyle = "rgba(180, 108, 255, 0.9)";
+  ctx.lineWidth = 5;
+  ctx.beginPath();
+  ctx.ellipse(0, 0, 24 + pulse * 4, 58 + pulse * 8, time * 1.8, 0, TAU);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.ellipse(0, 0, 58 + pulse * 6, 24 + pulse * 4, -time * 1.5, 0, TAU);
+  ctx.stroke();
+  ctx.restore();
+}
+
 function drawPlayer() {
   if (spriteSheet.complete && spriteSheet.naturalWidth) {
     ctx.save();
     ctx.translate(player.x, player.y);
     if (player.invuln > 0 && Math.floor(time * 18) % 2 === 0) ctx.globalAlpha = 0.5;
+    drawHyperAura();
     ctx.shadowColor = "#62f0ff";
     ctx.shadowBlur = 22;
     drawSprite(sprites.player, 0, 0, 76, 104, 0, true);
@@ -2534,6 +2692,7 @@ function drawPlayer() {
   ctx.save();
   ctx.translate(player.x, player.y);
   if (player.invuln > 0 && Math.floor(time * 18) % 2 === 0) ctx.globalAlpha = 0.45;
+  drawHyperAura();
   ctx.shadowColor = "#62f0ff";
   ctx.shadowBlur = 20;
   ctx.fillStyle = "#d8f8ff";
