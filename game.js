@@ -1316,20 +1316,21 @@ function updatePlayer(dt) {
 function firePlayer() {
   const weaponDamageMul = 2;
   const missileDamageMul = hyperAttackMultiplier();
+  const muzzle = playerHitbox();
   if (player.laserActive) {
     const hyperWidth = player.hyperTime > 0 ? 1 + player.hyperLevel * 0.12 : 1;
-    beams.push({ x: player.x, y: player.y - 34, life: 0.1, max: 0.1, w: 18 * hyperWidth, damage: 5.2 * weaponDamageMul });
-    beams.push({ x: player.x - 18, y: player.y - 28, life: 0.1, max: 0.1, w: 8 * hyperWidth, damage: 2.4 * weaponDamageMul });
-    beams.push({ x: player.x + 18, y: player.y - 28, life: 0.1, max: 0.1, w: 8 * hyperWidth, damage: 2.4 * weaponDamageMul });
+    beams.push({ x: muzzle.x, y: muzzle.y - 28, life: 0.1, max: 0.1, w: 18 * hyperWidth, damage: 5.2 * weaponDamageMul });
+    beams.push({ x: muzzle.x - 18, y: muzzle.y - 22, life: 0.1, max: 0.1, w: 8 * hyperWidth, damage: 2.4 * weaponDamageMul });
+    beams.push({ x: muzzle.x + 18, y: muzzle.y - 22, life: 0.1, max: 0.1, w: 8 * hyperWidth, damage: 2.4 * weaponDamageMul });
   } else {
     const volleys = player.hyperTime > 0 ? [-7, 7] : [0];
     for (const volleyOffset of volleys) {
       for (const ox of [-25, 0, 25]) {
-        playerBullets.push({ x: player.x + ox + volleyOffset, y: player.y - 22, vx: ox * 0.18, vy: -850, r: 4, damage: (ox === 0 ? 12 : 7) * weaponDamageMul });
+        playerBullets.push({ x: muzzle.x + ox + volleyOffset, y: muzzle.y - 16, vx: ox * 0.18, vy: -850, r: 4, damage: (ox === 0 ? 12 : 7) * weaponDamageMul });
       }
       if (player.power >= 5) {
-        playerBullets.push({ x: player.x - 34 + volleyOffset, y: player.y - 8, vx: -38, vy: -730, r: 3, damage: 5 * weaponDamageMul });
-        playerBullets.push({ x: player.x + 34 + volleyOffset, y: player.y - 8, vx: 38, vy: -730, r: 3, damage: 5 * weaponDamageMul });
+        playerBullets.push({ x: muzzle.x - 34 + volleyOffset, y: muzzle.y - 2, vx: -38, vy: -730, r: 3, damage: 5 * weaponDamageMul });
+        playerBullets.push({ x: muzzle.x + 34 + volleyOffset, y: muzzle.y - 2, vx: 38, vy: -730, r: 3, damage: 5 * weaponDamageMul });
       }
     }
   }
