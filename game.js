@@ -201,7 +201,7 @@ for (const track of Object.values(weaponSe)) {
   track.loop = true;
   track.preload = "auto";
 }
-weaponSe.normalVulcan.volume = 0.3;
+weaponSe.normalVulcan.volume = 0.16;
 weaponSe.normalBeam.volume = 0.3;
 weaponSe.hyperVulcan.volume = 0.64;
 weaponSe.hyperBeam.volume = 0.62;
@@ -1176,27 +1176,30 @@ function updatePlayer(dt) {
 }
 
 function firePlayer() {
-  const damageMul = hyperAttackMultiplier();
-  const spread = player.laserActive ? 11 : 25;
-  const offsets = [-spread, 0, spread];
-  for (const ox of offsets) {
-    playerBullets.push({ x: player.x + ox, y: player.y - 22, vx: ox * 0.18, vy: -850, r: 4, damage: (ox === 0 ? 12 : 7) * damageMul });
-  }
-  if (player.power >= 5) {
-    playerBullets.push({ x: player.x - 34, y: player.y - 8, vx: -38, vy: -730, r: 3, damage: 5 * damageMul });
-    playerBullets.push({ x: player.x + 34, y: player.y - 8, vx: 38, vy: -730, r: 3, damage: 5 * damageMul });
-  }
-  if (player.power >= 8 && player.missileCooldown <= 0) {
-    missiles.push({ x: player.x - 28, y: player.y + 4, vx: -130, vy: -330, r: 7, damage: 28 * damageMul, life: 2.8, turn: 7.5, smoke: 0 });
-    missiles.push({ x: player.x + 28, y: player.y + 4, vx: 130, vy: -330, r: 7, damage: 28 * damageMul, life: 2.8, turn: 7.5, smoke: 0 });
-    player.missileCooldown = player.laserActive ? 0.42 : 0.34;
-    playSfx("missile", 0.12);
-  }
+  const weaponDamageMul = 2;
+  const missileDamageMul = hyperAttackMultiplier();
   if (player.laserActive) {
     const hyperWidth = player.hyperTime > 0 ? 1 + player.hyperLevel * 0.12 : 1;
-    beams.push({ x: player.x, y: player.y - 34, life: 0.1, max: 0.1, w: 18 * hyperWidth, damage: 5.2 * damageMul });
-    beams.push({ x: player.x - 18, y: player.y - 28, life: 0.1, max: 0.1, w: 8 * hyperWidth, damage: 2.4 * damageMul });
-    beams.push({ x: player.x + 18, y: player.y - 28, life: 0.1, max: 0.1, w: 8 * hyperWidth, damage: 2.4 * damageMul });
+    beams.push({ x: player.x, y: player.y - 34, life: 0.1, max: 0.1, w: 18 * hyperWidth, damage: 5.2 * weaponDamageMul });
+    beams.push({ x: player.x - 18, y: player.y - 28, life: 0.1, max: 0.1, w: 8 * hyperWidth, damage: 2.4 * weaponDamageMul });
+    beams.push({ x: player.x + 18, y: player.y - 28, life: 0.1, max: 0.1, w: 8 * hyperWidth, damage: 2.4 * weaponDamageMul });
+  } else {
+    const volleys = player.hyperTime > 0 ? [-7, 7] : [0];
+    for (const volleyOffset of volleys) {
+      for (const ox of [-25, 0, 25]) {
+        playerBullets.push({ x: player.x + ox + volleyOffset, y: player.y - 22, vx: ox * 0.18, vy: -850, r: 4, damage: (ox === 0 ? 12 : 7) * weaponDamageMul });
+      }
+      if (player.power >= 5) {
+        playerBullets.push({ x: player.x - 34 + volleyOffset, y: player.y - 8, vx: -38, vy: -730, r: 3, damage: 5 * weaponDamageMul });
+        playerBullets.push({ x: player.x + 34 + volleyOffset, y: player.y - 8, vx: 38, vy: -730, r: 3, damage: 5 * weaponDamageMul });
+      }
+    }
+  }
+  if (player.power >= 8 && player.missileCooldown <= 0) {
+    missiles.push({ x: player.x - 28, y: player.y + 4, vx: -130, vy: -330, r: 7, damage: 28 * missileDamageMul, life: 2.8, turn: 7.5, smoke: 0 });
+    missiles.push({ x: player.x + 28, y: player.y + 4, vx: 130, vy: -330, r: 7, damage: 28 * missileDamageMul, life: 2.8, turn: 7.5, smoke: 0 });
+    player.missileCooldown = player.laserActive ? 0.42 : 0.34;
+    playSfx("missile", 0.12);
   }
 }
 
