@@ -8,6 +8,9 @@ const H = canvas.height;
 const TAU = Math.PI * 2;
 const PLAYER_START_LIVES = 6;
 const IS_MOBILE_BROWSER = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+const BGM_VOLUME = IS_MOBILE_BROWSER ? 0.68 : 0.58;
+const SE_VOLUME_SCALE = IS_MOBILE_BROWSER ? 0.48 : 1;
+const WEAPON_SE_VOLUME_SCALE = IS_MOBILE_BROWSER ? 0.55 : 1;
 const MAX_ENEMY_BULLETS = IS_MOBILE_BROWSER ? 380 : 560;
 const MAX_PARTICLES = IS_MOBILE_BROWSER ? 110 : 340;
 const MAX_HIT_SPARKS = IS_MOBILE_BROWSER ? 12 : 52;
@@ -205,19 +208,19 @@ let bgmPlaySerial = 0;
 const touchBombButton = { x: W - 176, y: H - 126, w: 154, h: 72 };
 for (const track of Object.values(bgm)) {
   track.loop = true;
-  track.volume = 0.58;
+  track.volume = BGM_VOLUME;
   track.preload = "auto";
 }
-hyperSe.start.volume = 0.88;
+hyperSe.start.volume = 0.88 * SE_VOLUME_SCALE;
 hyperSe.start.preload = "auto";
 for (const track of Object.values(weaponSe)) {
   track.loop = true;
   track.preload = "auto";
 }
-weaponSe.normalVulcan.volume = 0.1;
-weaponSe.normalBeam.volume = 0.2;
-weaponSe.hyperVulcan.volume = 0.18;
-weaponSe.hyperBeam.volume = 0.62;
+weaponSe.normalVulcan.volume = 0.1 * WEAPON_SE_VOLUME_SCALE;
+weaponSe.normalBeam.volume = 0.2 * WEAPON_SE_VOLUME_SCALE;
+weaponSe.hyperVulcan.volume = 0.18 * WEAPON_SE_VOLUME_SCALE;
+weaponSe.hyperBeam.volume = 0.62 * WEAPON_SE_VOLUME_SCALE;
 
 function createAudioPool(src, size = 4, baseVolume = 1) {
   return {
@@ -316,10 +319,14 @@ function addNoiseLayer(now, {
 function playAudioPool(pool, volume = 1) {
   if (!pool || !pool.tracks.length) return;
   const track = pool.tracks[pool.index];
+  if (IS_MOBILE_BROWSER && !mediaReady(track)) {
+    track.load();
+    return;
+  }
   pool.index = (pool.index + 1) % pool.tracks.length;
   track.pause();
   track.currentTime = 0;
-  track.volume = clamp(pool.baseVolume * volume, 0, 1);
+  track.volume = clamp(pool.baseVolume * volume * SE_VOLUME_SCALE, 0, 1);
   track.play().catch(() => {});
 }
 
@@ -341,6 +348,10 @@ function particleLimit() {
 
 function canAddParticle(extra = 1) {
   return particles.length + extra <= particleLimit();
+}
+
+function mediaReady(track) {
+  return track && track.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA;
 }
 
 function enemyBulletLimit() {
@@ -756,7 +767,7 @@ function addHyperGauge(amount) {
 function resetBgmTrack(track) {
   track.pause();
   track.currentTime = 0;
-  track.volume = 0.58;
+  track.volume = BGM_VOLUME;
   track.muted = false;
 }
 
@@ -770,13 +781,18 @@ function playBgm(name) {
   const next = bgm[name];
   if (!next) return;
   const playSerial = ++bgmPlaySerial;
+  if (IS_MOBILE_BROWSER && !mediaReady(next)) {
+    next.load();
+    currentBgm = null;
+    return;
+  }
   if (bgmFade) {
     resetBgmTrack(bgmFade.track);
     bgmFade = null;
   }
   resetOtherBgmTracks(next);
   next.muted = false;
-  next.volume = 0.58;
+  next.volume = BGM_VOLUME;
   currentBgm = next;
   currentBgm.currentTime = 0;
   currentBgm.play()
@@ -796,6 +812,10 @@ function stopBgm() {
 }
 
 function playHyperStartSe() {
+  if (IS_MOBILE_BROWSER && !mediaReady(hyperSe.start)) {
+    hyperSe.start.load();
+    return;
+  }
   hyperSe.start.pause();
   hyperSe.start.currentTime = 0;
   hyperSe.start.play().catch(() => {});
@@ -818,6 +838,11 @@ function updateWeaponLoopSe() {
     currentWeaponSe.pause();
     currentWeaponSe.currentTime = 0;
   }
+  if (next && IS_MOBILE_BROWSER && !mediaReady(next)) {
+    next.load();
+    currentWeaponSe = null;
+    return;
+  }
   currentWeaponSe = next;
   if (currentWeaponSe) currentWeaponSe.play().catch(() => {});
 }
@@ -839,7 +864,7 @@ function fadeOutBgm(duration = 2.2) {
   bgmPlaySerial++;
   if (bgmFade) resetBgmTrack(bgmFade.track);
   resetOtherBgmTracks(currentBgm);
-  bgmFade = { track: currentBgm, duration, timer: 0, from: currentBgm.volume || 0.58 };
+  bgmFade = { track: currentBgm, duration, timer: 0, from: currentBgm.volume || BGM_VOLUME };
   currentBgm = null;
 }
 
@@ -851,7 +876,7 @@ function updateBgmFade(dt) {
   if (pct >= 1) {
     bgmFade.track.pause();
     bgmFade.track.currentTime = 0;
-    bgmFade.track.volume = 0.58;
+    bgmFade.track.volume = BGM_VOLUME;
     bgmFade = null;
   }
 }
