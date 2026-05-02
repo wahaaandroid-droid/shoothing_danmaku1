@@ -21,6 +21,8 @@ const HYPER_STOCK_MAX = 5;
 const HYPER_ITEM_DROP_Y = 130;
 const HYPER_DURATION = 12;
 const COMBO_HOLD_SECONDS = 3;
+const PLAYER_HITBOX_OFFSET_X = 0;
+const PLAYER_HITBOX_OFFSET_Y = 5;
 const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
 const rand = (min, max) => min + Math.random() * (max - min);
 const dist2 = (a, b) => {
@@ -29,6 +31,11 @@ const dist2 = (a, b) => {
   const dy = a.y - b.y;
   return dx * dx + dy * dy;
 };
+const playerHitbox = () => ({
+  x: player.x + PLAYER_HITBOX_OFFSET_X,
+  y: player.y + PLAYER_HITBOX_OFFSET_Y,
+  r: player.r,
+});
 
 let running = false;
 let paused = false;
@@ -2299,7 +2306,7 @@ function collide() {
     if (phase === "boss" && boss.visible && Math.abs(beam.x - boss.x) < boss.r * 0.9 && boss.y < beam.y) {
       damageBoss(beam.damage);
       addComboHits(1);
-      addHyperGauge(0.45);
+      addHyperGauge(0.62);
       if (Math.random() < 0.12) spawnHitSpark(beam.x + rand(-18, 18), boss.y + rand(-30, 30), "#bffcff", 0.6);
     }
     for (const e of enemies) {
@@ -2308,7 +2315,7 @@ function collide() {
         e.hp -= beam.damage * (e.size === "midboss" ? 0.85 : 1.2);
         e.hitFlash = 1;
         addComboHits(1);
-        addHyperGauge(e.size === "midboss" ? 0.8 : 0.5);
+        addHyperGauge(e.size === "midboss" ? 1.1 : 0.68);
         if (Math.random() < 0.16) spawnHitSpark(e.x + rand(-e.r, e.r), e.y, "#bffcff", e.size === "midboss" ? 0.85 : 0.55);
         if (e.hp <= 0) killEnemy(e);
       }
@@ -2322,6 +2329,7 @@ function collide() {
       spawnHitSpark(b.x, b.y, "#8df8ff", 0.85);
       playSfx("hit", 0.16);
       damageBoss(b.damage);
+      addHyperGauge(0.42);
       continue;
     }
     for (let j = enemies.length - 1; j >= 0; j--) {
@@ -2332,6 +2340,7 @@ function collide() {
         e.hitFlash = 1;
         spawnHitSpark(b.x, b.y, e.size === "medium" ? "#ffdf65" : "#8df8ff", e.size === "medium" ? 1.25 : 0.75);
         playSfx("hit", e.size === "medium" ? 0.18 : 0.12);
+        addHyperGauge(e.size === "midboss" ? 0.8 : e.size === "medium" ? 0.65 : 0.42);
         playerBullets.splice(i, 1);
         if (e.hp <= 0) killEnemy(e);
         break;
@@ -2347,6 +2356,7 @@ function collide() {
       spawnHitSpark(m.x, m.y, "#ffad45", 1.25);
       playSfx("missilehit", 0.18);
       damageBoss(m.damage);
+      addHyperGauge(1.0);
       continue;
     }
     for (let j = enemies.length - 1; j >= 0; j--) {
@@ -2357,6 +2367,7 @@ function collide() {
         e.hitFlash = 1;
         spawnHitSpark(m.x, m.y, "#ffad45", 1.15);
         playSfx("missilehit", 0.17);
+        addHyperGauge(e.size === "midboss" ? 1.2 : 0.8);
         missiles.splice(i, 1);
         consumed = true;
         if (e.hp <= 0) killEnemy(e);
@@ -2365,15 +2376,16 @@ function collide() {
     }
     if (consumed) continue;
   }
+  const hitbox = playerHitbox();
   for (const b of enemyBullets) {
-    const d = Math.sqrt(dist2(b, player));
-    if (!b.graze && d < 32 && d > player.r + b.r) {
+    const d = Math.sqrt(dist2(b, hitbox));
+    if (!b.graze && d < 32 && d > hitbox.r + b.r) {
       b.graze = true;
       player.graze++;
       addScore(240);
       if (canAddParticle()) particles.push({ x: player.x, y: player.y, vx: rand(-60, 60), vy: rand(-90, 20), life: isLiteRender() ? 0.22 : 0.35, color: "#8df8ff" });
     }
-    if (player.invuln <= 0 && d < player.r + b.r) {
+    if (player.invuln <= 0 && d < hitbox.r + b.r) {
       hitPlayer();
       break;
     }
@@ -2384,7 +2396,7 @@ function collide() {
     if (dist2(p, player) < (p.r + 18) ** 2) {
       if (p.type === "bomb") player.bombs = Math.min(4, player.bombs + 1);
       else if (p.type === "hyper") player.hyperStock = Math.min(HYPER_STOCK_MAX, player.hyperStock + 1);
-      else if (p.type === "hyperCharge") addHyperGauge(32);
+      else if (p.type === "hyperCharge") addHyperGauge(96);
       else if (p.type === "life") player.lives = Math.min(9, player.lives + 1);
       else if (p.type === "score") addScore(50000);
       else player.power = Math.min(8, player.power + 1);
@@ -2986,12 +2998,12 @@ function drawPlayer() {
       ctx.strokeStyle = "rgba(255, 87, 217, 0.86)";
       ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.arc(0, 0, 28, 0, TAU);
+      ctx.arc(PLAYER_HITBOX_OFFSET_X, PLAYER_HITBOX_OFFSET_Y, 28, 0, TAU);
       ctx.stroke();
     }
     ctx.fillStyle = "#ff4ddb";
     ctx.beginPath();
-    ctx.arc(0, 0, player.r, 0, TAU);
+    ctx.arc(PLAYER_HITBOX_OFFSET_X, PLAYER_HITBOX_OFFSET_Y, player.r, 0, TAU);
     ctx.fill();
     ctx.restore();
     return;
@@ -3020,12 +3032,12 @@ function drawPlayer() {
     ctx.strokeStyle = "rgba(255, 87, 217, 0.8)";
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.arc(0, 0, 26, 0, TAU);
+    ctx.arc(PLAYER_HITBOX_OFFSET_X, PLAYER_HITBOX_OFFSET_Y, 26, 0, TAU);
     ctx.stroke();
   }
   ctx.fillStyle = "#ff4ddb";
   ctx.beginPath();
-  ctx.arc(0, 0, player.r, 0, TAU);
+  ctx.arc(PLAYER_HITBOX_OFFSET_X, PLAYER_HITBOX_OFFSET_Y, player.r, 0, TAU);
   ctx.fill();
   ctx.restore();
 }
