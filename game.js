@@ -611,7 +611,7 @@ const STAGES = [
     enemySpeed: 1,
     fireRate: 1.18,
     bossInterval: 0.24,
-    bulletSpeed: 1.14,
+    bulletSpeed: 1.26,
   },
   {
     no: 2,
@@ -632,7 +632,7 @@ const STAGES = [
     enemySpeed: 1.08,
     fireRate: 1.16,
     bossInterval: 0.245,
-    bulletSpeed: 1.25,
+    bulletSpeed: 1.39,
   },
   {
     no: 3,
@@ -653,7 +653,7 @@ const STAGES = [
     enemySpeed: 1.15,
     fireRate: 1.14,
     bossInterval: 0.255,
-    bulletSpeed: 1.37,
+    bulletSpeed: 1.52,
   },
   {
     no: 4,
@@ -674,7 +674,7 @@ const STAGES = [
     enemySpeed: 1.24,
     fireRate: 1.12,
     bossInterval: 0.265,
-    bulletSpeed: 1.49,
+    bulletSpeed: 1.66,
   },
   {
     no: 5,
@@ -695,7 +695,7 @@ const STAGES = [
     enemySpeed: 1.38,
     fireRate: 1.08,
     bossInterval: 0.28,
-    bulletSpeed: 1.68,
+    bulletSpeed: 1.86,
     duration: 93,
     waves: STAGE_5_WAVES,
   },
@@ -2273,7 +2273,6 @@ function cull() {
   removeWhere(playerBullets, (b) => b.y < -60 || b.x < -80 || b.x > W + 80);
   removeWhere(missiles, (m) => m.life <= 0 || m.y < -140 || m.x < -140 || m.x > W + 140 || m.y > H + 140);
   removeWhere(enemyBullets, (b) => b.y > H + 80 || b.y < -100 || b.x < -120 || b.x > W + 120);
-  trimList(enemyBullets, enemyBulletLimit());
   removeWhere(enemies, (e) => e.x < -90 || e.x > W + 90 || e.hp <= 0);
   removeWhere(pickups, (p) => p.y > H + 40);
   removeWhere(explosions, (e) => e.life <= 0);
