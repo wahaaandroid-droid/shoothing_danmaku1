@@ -11,7 +11,7 @@ const IS_MOBILE_BROWSER = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 const BGM_VOLUME = IS_MOBILE_BROWSER ? 0.68 : 0.58;
 const SE_VOLUME_SCALE = IS_MOBILE_BROWSER ? 0.48 : 1;
 const WEAPON_SE_VOLUME_SCALE = IS_MOBILE_BROWSER ? 0.55 : 1;
-const MAX_ENEMY_BULLETS = IS_MOBILE_BROWSER ? 380 : 560;
+const MAX_ENEMY_BULLETS = IS_MOBILE_BROWSER ? 240 : 360;
 const MAX_PARTICLES = IS_MOBILE_BROWSER ? 110 : 340;
 const MAX_HIT_SPARKS = IS_MOBILE_BROWSER ? 12 : 52;
 const MAX_EXPLOSIONS = IS_MOBILE_BROWSER ? 8 : 34;
@@ -369,7 +369,8 @@ function mediaReady(track) {
 }
 
 function enemyBulletLimit() {
-  return MAX_ENEMY_BULLETS;
+  const phaseScale = phase === "boss" ? 0.6 : phase === "bossDeath" ? 0.35 : 1;
+  return Math.max(IS_MOBILE_BROWSER ? 120 : 180, Math.floor(MAX_ENEMY_BULLETS * phaseScale * perfScale()));
 }
 
 function explosionStackGain() {
@@ -608,8 +609,8 @@ const STAGES = [
     bossHp: 13500,
     enemyHp: 1,
     enemySpeed: 1,
-    fireRate: 1,
-    bossInterval: 0.18,
+    fireRate: 1.18,
+    bossInterval: 0.24,
     bulletSpeed: 1,
   },
   {
@@ -629,8 +630,8 @@ const STAGES = [
     bossHp: 17700,
     enemyHp: 1.18,
     enemySpeed: 1.08,
-    fireRate: 0.9,
-    bossInterval: 0.16,
+    fireRate: 1.16,
+    bossInterval: 0.245,
     bulletSpeed: 1.08,
   },
   {
@@ -650,8 +651,8 @@ const STAGES = [
     bossHp: 22200,
     enemyHp: 1.36,
     enemySpeed: 1.15,
-    fireRate: 0.78,
-    bossInterval: 0.145,
+    fireRate: 1.14,
+    bossInterval: 0.255,
     bulletSpeed: 1.16,
   },
   {
@@ -671,8 +672,8 @@ const STAGES = [
     bossHp: 28500,
     enemyHp: 1.62,
     enemySpeed: 1.24,
-    fireRate: 0.66,
-    bossInterval: 0.125,
+    fireRate: 1.12,
+    bossInterval: 0.265,
     bulletSpeed: 1.25,
   },
   {
@@ -692,8 +693,8 @@ const STAGES = [
     bossHp: 42750,
     enemyHp: 1.95,
     enemySpeed: 1.38,
-    fireRate: 0.56,
-    bossInterval: 0.105,
+    fireRate: 1.08,
+    bossInterval: 0.28,
     bulletSpeed: 1.42,
     duration: 93,
     waves: STAGE_5_WAVES,
@@ -752,7 +753,7 @@ function hyperAttackMultiplier() {
 }
 
 function hyperRankMultiplier() {
-  return player.hyperTime > 0 ? 1 + player.hyperLevel * 0.08 : 1;
+  return player.hyperTime > 0 ? 1 + player.hyperLevel * 0.04 : 1;
 }
 
 function normalizeHyperRankedBullets() {
@@ -1481,10 +1482,10 @@ function updateCredits(dt) {
   }
 }
 
-// S1は12発の単純螺旋、S2以降で段階的に増やす
+// S1は密度を抑えた単純螺旋、S2以降も増え方を緩やかにする
 function spiralBurst() {
   const no = currentStage().no;
-  const count = 10 + no * 2; // S1:12, S2:14, S3:16, S4:18, S5:20
+  const count = 8 + no; // S1:9, S2:10, S3:11, S4:12, S5:13
   const base = time * (2.8 + no * 0.22);
   for (let i = 0; i < count; i++) {
     const a = base + (i / count) * TAU;
@@ -1496,10 +1497,10 @@ function spiralBurst() {
   }
 }
 
-// S1は16発の単純花弁、S2以降で密度を上げる
+// S1は控えめな花弁、S2以降も密度を上げすぎない
 function flowerBurst() {
   const no = currentStage().no;
-  const count = 14 + no * 3; // S1:17, S2:20, S3:23, S4:26, S5:29
+  const count = 12 + no * 2; // S1:14, S2:16, S3:18, S4:20, S5:22
   for (let i = 0; i < count; i++) {
     const a = (i / count) * TAU + Math.sin(time * 2) * (0.2 + no * 0.08);
     const speed = 95 + 60 * Math.sin(i * 1.7 + time) ** 2;
@@ -1509,26 +1510,26 @@ function flowerBurst() {
 
 function aimedFans() {
   const aim = Math.atan2(player.y - boss.y, player.x - boss.x);
-  const fanWidth = currentStage().no >= 3 ? 3 : 2;
+  const fanWidth = currentStage().no >= 3 ? 2 : 1;
   for (let fan = -fanWidth; fan <= fanWidth; fan++) {
-    for (let i = -3; i <= 3; i++) {
+    for (let i = -2; i <= 2; i++) {
       spawnBullet(boss.x + fan * 17, boss.y + 34, aim + i * 0.11 + fan * 0.03, 205 + Math.abs(i) * 18, fan % 2 ? "#ff4d7e" : "#8ff6ff", 6, "needle");
     }
   }
 }
 
 function helixStorm() {
-  const arms = currentStage().no >= 4 ? 5 : 4;
+  const arms = currentStage().no >= 4 ? 4 : 3;
   for (let arm = 0; arm < arms; arm++) {
     const a = time * 4.2 + arm * TAU / arms;
-    for (let i = 0; i < 6; i++) {
+    for (let i = 0; i < 4; i++) {
       spawnBullet(boss.x, boss.y, a + i * 0.12, 128 + i * 24, arm % 2 ? "#ad5cff" : "#ff8642", 5, "orb");
     }
   }
 }
 
 function curtainRain() {
-  const lanes = 7 + currentStage().no;
+  const lanes = 6 + Math.ceil(currentStage().no / 2);
   for (let i = 0; i < lanes; i++) {
     const x = 70 + i * ((W - 140) / Math.max(1, lanes - 1));
     const sway = Math.sin(time * 2.6 + i) * 0.18;
@@ -1538,12 +1539,12 @@ function curtainRain() {
 
 function crossingLasers() {
   const base = Math.atan2(player.y - boss.y, player.x - boss.x);
-  for (let i = -3; i <= 3; i++) {
+  for (let i = -2; i <= 2; i++) {
     spawnBullet(boss.x - 82, boss.y + 22, base + i * 0.18 + 0.3, 235, "#ff355e", 5, "laser");
     spawnBullet(boss.x + 82, boss.y + 22, base - i * 0.18 - 0.3, 235, "#ad5cff", 5, "laser");
   }
-  for (let i = 0; i < 10; i++) {
-    spawnBullet(boss.x, boss.y + 36, (i / 10) * TAU + time, 105, "#ffec8b", 6, "star");
+  for (let i = 0; i < 6; i++) {
+    spawnBullet(boss.x, boss.y + 36, (i / 6) * TAU + time, 105, "#ffec8b", 6, "star");
   }
 }
 
@@ -1555,7 +1556,7 @@ function crossingLasers() {
 function s1SymmetryFan() {
   const aim = Math.atan2(player.y - boss.y, player.x - boss.x);
   for (let side = -1; side <= 1; side += 2) {
-    for (let i = -4; i <= 4; i++) {
+    for (let i = -3; i <= 3; i++) {
       spawnBullet(
         boss.x + side * 58, boss.y + 30,
         aim + i * 0.09,
@@ -1573,7 +1574,7 @@ function s1SymmetryFan() {
 
 // 【変更後】角度を均等に割り当てず「意図的に2箇所の隙間」を作る
 function s2WallSpread() {
-  const count = 16; // 44→16に削減
+  const count = 12;
   const offset = time * 0.75;
   const gapAngle1 = Math.PI / 2; // 下方向に隙間
   const gapAngle2 = Math.PI / 2 + Math.PI; // 上方向にも隙間
@@ -1590,7 +1591,7 @@ function s2WallSpread() {
 
 // ランダムばらまきは少数にして「逃げ場のある密度」に
 function s2RandomFlood() {
-  const count = 12; // 28→12に削減
+  const count = 8;
   for (let i = 0; i < count; i++) {
     const a = rand(0, TAU);
     const spd = rand(62, 105);
@@ -1598,10 +1599,10 @@ function s2RandomFlood() {
   }
 }
 
-// 3波→2波、各12発。隙間を揃えて「抜けるライン」を作る
+// 2波、各10発。隙間を揃えて「抜けるライン」を作る
 function s2BurstRing() {
   [0, Math.PI / 12].forEach((offset, waveIdx) => { // 2波に削減
-    const count = 12; // 16→12
+    const count = 10;
     for (let i = 0; i < count; i++) {
       const a = (i / count) * TAU + offset;
       const spd = 160 + waveIdx * 30;
@@ -1614,7 +1615,7 @@ function s2BurstRing() {
 function s2TwinCurtain() {
   const cadence = Math.floor(bossPhaseClock / currentStage().bossInterval);
   if (cadence % 2 === 1) return;
-  const lanes = 7;
+  const lanes = 5;
   for (let i = 0; i < lanes; i++) {
     if (i === Math.floor(lanes / 2)) continue;
     const x = 74 + i * ((W - 148) / (lanes - 1));
@@ -1636,7 +1637,7 @@ function s3TrackerFan() {
   const aim = Math.atan2(player.y - boss.y, player.x - boss.x);
   const colors = ["#ff355e", "#ad5cff", "#62eaff"];
   for (let wave = 0; wave < 3; wave++) {
-    for (let i = -2; i <= 2; i++) {
+    for (let i = -1; i <= 1; i++) {
       spawnBullet(
         boss.x, boss.y + 26,
         aim + i * 0.12 + wave * (TAU / 3),
@@ -1650,17 +1651,17 @@ function s3TrackerFan() {
 // 自機方向の緩やか螺旋: 逃げ続けると自然に散る
 function s3HomingSpiral() {
   const aim = Math.atan2(player.y - boss.y, player.x - boss.x);
-  const count = 14;
+  const count = 10;
   for (let i = 0; i < count; i++) {
     const a = aim + (i / count) * TAU * 0.32 + Math.sin(time * 1.9) * 0.38;
     spawnBullet(boss.x, boss.y, a, 95 + i * 9, "#ff4d7e", 7, "orb");
   }
 }
 
-// 7方向挟み込み: 同じ場所に留まると詰む
+// 5方向挟み込み: 同じ場所に留まると詰む
 function s3TripleTracker() {
   const aim = Math.atan2(player.y - boss.y, player.x - boss.x);
-  const offsets = [-90, -60, -30, 0, 30, 60, 90];
+  const offsets = [-60, -30, 0, 30, 60];
   offsets.forEach(deg => {
     const a = aim + (deg * Math.PI) / 180;
     spawnBullet(boss.x, boss.y + 20, a, 188, "#8ff6ff", 5, "laser");
@@ -1673,7 +1674,7 @@ function s3TripleTracker() {
 
 // 遅弾と速弾の層: 安全に見えた場所が後から塞がれる
 function s4SlowFastMix() {
-  const count = 20;
+  const count = 14;
   const base = time * 2.2;
   for (let i = 0; i < count; i++) {
     const a = base + (i / count) * TAU;
@@ -1688,11 +1689,11 @@ function s4SlowFastMix() {
 
 // 外側ほど速い螺旋: 内側（近距離）が相対的に安全
 function s4AccelSpiral() {
-  const arms = 5;
+  const arms = 4;
   const base = time * 3.8;
   for (let arm = 0; arm < arms; arm++) {
     const aBase = base + arm * (TAU / arms);
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < 4; i++) {
       const spd = 88 + i * 44;
       spawnBullet(boss.x, boss.y, aBase + i * 0.1, spd,
         arm % 2 ? "#ff8642" : "#62eaff", 6, "orb");
@@ -1700,9 +1701,9 @@ function s4AccelSpiral() {
   }
 }
 
-// 2種の弾を交互に、合計16発。速弾と遅弾の隙間で避ける
+// 2種の弾を交互に、合計12発。速弾と遅弾の隙間で避ける
 function s4SplitRing() {
-  const count = 16; // 22発×2種=44→16発に削減
+  const count = 12;
   const offset = bossPhaseClock * 0.6;
   for (let i = 0; i < count; i++) {
     const a = (i / count) * TAU + offset;
@@ -1718,23 +1719,23 @@ function s4SplitRing() {
 //  S5 専用パターン（統合・侵食）
 // ═══════════════════════════════════════════════
 
-// 18発に削減、速度差で「すり抜けレーン」を作る
+// 15発に削減、速度差で「すり抜けレーン」を作る
 function s5OmniBlast() {
-  const count = 18; // 52→18に削減
+  const count = 15;
   const offset = time * 0.5;
   const colors = ["#ff355e", "#ad5cff", "#ffe66d", "#62eaff"];
+  const speeds = [75, 135, 205];
   for (let i = 0; i < count; i++) {
     const a = (i / count) * TAU + offset;
-    // 3段速度: 遅・中・速を6発ずつ。速度の違いで隙間が生まれる
-    const tier = Math.floor(i / 6);
-    const spd = [75, 140, 220][tier];
-    spawnBullet(boss.x, boss.y, a, spd, colors[i % 4], 6, tier === 2 ? "needle" : "orb");
+    const speedIndex = i % speeds.length;
+    const spd = speeds[speedIndex];
+    spawnBullet(boss.x, boss.y, a, spd, colors[i % 4], 6, speedIndex === 2 ? "needle" : "orb");
   }
 }
 
-// カーテンを9レーン（奇数なので中央に隙間あり）、自機狙いは3発
+// カーテンを7レーン（奇数なので中央に隙間あり）、自機狙いは3発
 function s5DarkCurtain() {
-  const lanes = 9; // 14→9。奇数にすることで中央1レーンが空く
+  const lanes = 7;
   for (let i = 0; i < lanes; i++) {
     const x = 60 + i * ((W - 120) / (lanes - 1));
     const sway = Math.sin(time * 1.6 + i * 0.9) * 0.22;
@@ -1769,7 +1770,7 @@ function updateSpawns(dt) {
   const def = currentStage();
   if (phase === "stage") {
     updateStageSpawns();
-  } else if (phase === "boss" && enemyClock > 5.5) {
+  } else if (phase === "boss" && enemyClock > 8.0) {
     enemyClock = 0;
     const side = Math.random() > 0.5 ? -1 : 1;
     spawnEnemy(side < 0 ? -46 : W + 46, rand(360, 600), side * -rand(100, 150) * def.enemySpeed, rand(-12, 28), side, 55, "small");
@@ -1786,7 +1787,7 @@ function updateStageSpawns() {
   }
 
   // 案C: ステージ別 流れスポーン
-  const spawnInterval = no === 1 ? 1.15 : no === 2 ? 0.85 : no === 3 ? 0.9 : no === 4 ? 1.0 : 0.7;
+  const spawnInterval = no === 1 ? 1.35 : no === 2 ? 1.12 : no === 3 ? 1.16 : no === 4 ? 1.24 : 1.02;
 
   if (enemyClock > spawnInterval) {
     enemyClock = 0;
@@ -2098,7 +2099,7 @@ function updateEntities(dt) {
       e.y += (210 - e.y) * Math.min(1, dt * 2);
       e.vy *= 0.96;
     }
-    const fireInterval = ((e.size === "midboss" ? 0.34 : e.size === "carrier" ? 1.35 : e.size === "medium" ? 0.72 : 1.15) * currentStage().fireRate) / hyperRankMultiplier();
+    const fireInterval = ((e.size === "midboss" ? 0.48 : e.size === "carrier" ? 1.7 : e.size === "medium" ? 1.0 : 1.45) * currentStage().fireRate) / hyperRankMultiplier();
     if ((phase === "stage" || phase === "boss") && e.fireClock > fireInterval && e.x > 34 && e.x < W - 34 && e.y > 44 && e.y < H - 110) fireEnemy(e);
   }
   for (const p of pickups) {
@@ -2172,36 +2173,36 @@ function fireEnemy(e) {
 
   // ── キャリア: 全ステージ共通 ──────────────────────────────
   if (e.size === "carrier") {
-    for (let i = -1; i <= 1; i++) spawnBullet(e.x, e.y, a + i * 0.2, 170, "#ffad45", 5, "star");
+    spawnBullet(e.x, e.y, a, 165, "#ffad45", 5, "star");
     return;
   }
 
   // ── ミッドボス: 案D ステージ別射撃 ───────────────────────
   if (e.size === "midboss") {
     if (no === 1) {
-      // S1: 放射状2リング（現状通り、ゆっくり）
+      // S1: 放射状2リング（控えめ、ゆっくり）
       for (let ring = 0; ring < 2; ring++) {
-        for (let i = 0; i < 12; i++) {
-          spawnBullet(e.x, e.y + 18, (i / 12) * TAU + time * 1.3 + ring * 0.16, 118 + ring * 48, ring ? "#ff4fcf" : "#62eaff", 6, "petal");
+        for (let i = 0; i < 8; i++) {
+          spawnBullet(e.x, e.y + 18, (i / 8) * TAU + time * 1.3 + ring * 0.16, 118 + ring * 48, ring ? "#ff4fcf" : "#62eaff", 6, "petal");
         }
       }
     } else if (no === 2) {
       // S2: 高速リング1種 + 自機狙い扇（速さで圧迫）
-      for (let i = 0; i < 14; i++) {
-        spawnBullet(e.x, e.y + 18, (i / 14) * TAU + time * 2.0, 185, "#ffe66d", 6, "ring");
+      for (let i = 0; i < 10; i++) {
+        spawnBullet(e.x, e.y + 18, (i / 10) * TAU + time * 2.0, 185, "#ffe66d", 6, "ring");
       }
-      for (let i = -2; i <= 2; i++) {
+      for (let i = -1; i <= 1; i++) {
         spawnBullet(e.x, e.y + 18, a + i * 0.14, 210, "#ff4fcf", 5, "needle");
       }
     } else if (no === 3) {
       // S3: 自機狙い多方向（動き続けることが解答）
-      for (let i = -3; i <= 3; i++) {
+      for (let i = -2; i <= 2; i++) {
         spawnBullet(e.x, e.y + 18, a + i * 0.11, 190 + Math.abs(i) * 14, "#ff355e", 6, "needle");
       }
     } else if (no === 4) {
-      // S4: 遅弾大量 + 速弾少数の混合（安全圏が消える）
-      for (let i = 0; i < 10; i++) {
-        const angle = (i / 10) * TAU + time * 0.8;
+      // S4: 遅弾 + 速弾少数の混合（安全圏が消える）
+      for (let i = 0; i < 8; i++) {
+        const angle = (i / 8) * TAU + time * 0.8;
         spawnBullet(e.x, e.y + 18, angle, 72, "#ad5cff", 8, "orb");
       }
       for (let i = -1; i <= 1; i++) {
@@ -2211,21 +2212,21 @@ function fireEnemy(e) {
       // S5: S2〜S4をランダム切り替え
       const r = Math.floor(time * 0.4) % 3;
       if (r === 0) {
-        for (let i = 0; i < 14; i++) spawnBullet(e.x, e.y + 18, (i / 14) * TAU + time * 2.0, 185, "#ffe66d", 6, "ring");
-        for (let i = -2; i <= 2; i++) spawnBullet(e.x, e.y + 18, a + i * 0.14, 210, "#ff4fcf", 5, "needle");
+        for (let i = 0; i < 10; i++) spawnBullet(e.x, e.y + 18, (i / 10) * TAU + time * 2.0, 185, "#ffe66d", 6, "ring");
+        for (let i = -1; i <= 1; i++) spawnBullet(e.x, e.y + 18, a + i * 0.14, 210, "#ff4fcf", 5, "needle");
       } else if (r === 1) {
-        for (let i = -3; i <= 3; i++) spawnBullet(e.x, e.y + 18, a + i * 0.11, 190 + Math.abs(i) * 14, "#ff355e", 6, "needle");
+        for (let i = -2; i <= 2; i++) spawnBullet(e.x, e.y + 18, a + i * 0.11, 190 + Math.abs(i) * 14, "#ff355e", 6, "needle");
       } else {
-        for (let i = 0; i < 10; i++) spawnBullet(e.x, e.y + 18, (i / 10) * TAU + time * 0.8, 72, "#ad5cff", 8, "orb");
+        for (let i = 0; i < 8; i++) spawnBullet(e.x, e.y + 18, (i / 8) * TAU + time * 0.8, 72, "#ad5cff", 8, "orb");
         for (let i = -1; i <= 1; i++) spawnBullet(e.x, e.y + 18, a + i * 0.2, 230, "#ff355e", 5, "needle");
       }
     }
     return;
   }
 
-  // ── 中型: 全ステージ共通（現状通り）───────────────────────
+  // ── 中型: 全ステージ共通（密度を抑えた3way）───────────────
   if (e.size === "medium") {
-    for (let i = -2; i <= 2; i++) {
+    for (let i = -1; i <= 1; i++) {
       spawnBullet(e.x, e.y + 10, a + i * 0.16, 175 + Math.abs(i) * 20, i % 2 ? "#ff4fcf" : "#62eaff", 6, i === 0 ? "ring" : "petal");
     }
     return;
@@ -2237,26 +2238,21 @@ function fireEnemy(e) {
     spawnBullet(e.x, e.y, a, 220, "#ffad45", 5, "needle");
 
   } else if (no === 2) {
-    // S2: 3way拡散（横断中に弾が広がる）
-    for (let i = -1; i <= 1; i++) {
-      spawnBullet(e.x, e.y, a + i * 0.22, 230, "#ff8c00", 5, i === 0 ? "needle" : "wave");
-    }
+    // S2: 2way拡散（横断中に弾が広がる）
+    spawnBullet(e.x, e.y, a - 0.16, 230, "#ff8c00", 5, "wave");
+    spawnBullet(e.x, e.y, a + 0.16, 230, "#ff8c00", 5, "wave");
 
   } else if (no === 3) {
-    // S3: 自機狙い2連射（0.08秒差で追ってくる感覚）
+    // S3: 自機狙い1発（追尾圧は残しつつ密度を下げる）
     spawnBullet(e.x, e.y, a, 240, "#ff355e", 5, "needle");
-    spawnBullet(e.x, e.y, a + 0.08, 200, "#ff4d7e", 5, "needle");
 
   } else if (no === 4) {
-    // S4: 自機狙い + 真下に1発（前後の安全地帯を削る）
+    // S4: 自機狙い1発
     spawnBullet(e.x, e.y, a, 235, "#ad5cff", 5, "needle");
-    spawnBullet(e.x, e.y, Math.PI / 2, 140, "#8642ff", 6, "orb");
 
   } else {
-    // S5: 自機狙い + 左右に1発ずつ（3方向包囲）
+    // S5: 自機狙い1発
     spawnBullet(e.x, e.y, a, 245, "#ff355e", 5, "needle");
-    spawnBullet(e.x, e.y, 0, 160, "#ad5cff", 5, "orb");
-    spawnBullet(e.x, e.y, Math.PI, 160, "#ad5cff", 5, "orb");
   }
 }
 
@@ -2435,27 +2431,25 @@ function killEnemy(e) {
     const no = currentStage().no;
     const a = Math.atan2(player.y - e.y, player.x - e.x);
     if (no === 2) {
-      // S2: ランダム2発ばらまき
-      for (let i = 0; i < 2; i++) {
-        spawnBullet(e.x, e.y, rand(0, TAU), rand(80, 140), "#ff8c00", 6, "orb");
-      }
+      // S2: ランダム1発ばらまき
+      spawnBullet(e.x, e.y, rand(0, TAU), rand(80, 140), "#ff8c00", 6, "orb");
     } else if (no === 3) {
       // S3: 自機方向に1発（倒しても追ってくる）
       spawnBullet(e.x, e.y, a, 180, "#ff355e", 6, "needle");
     } else if (no === 4) {
-      // S4: 4方向放出
-      for (let i = 0; i < 4; i++) {
-        spawnBullet(e.x, e.y, (i / 4) * TAU, 120, "#ad5cff", 6, "orb");
+      // S4: 2方向放出
+      for (let i = 0; i < 2; i++) {
+        spawnBullet(e.x, e.y, (i / 2) * TAU, 120, "#ad5cff", 6, "orb");
       }
     } else if (no === 5) {
       // S5: S2〜S4のランダム混合
       const r = Math.floor(Math.random() * 3);
       if (r === 0) {
-        for (let i = 0; i < 2; i++) spawnBullet(e.x, e.y, rand(0, TAU), rand(80, 140), "#ff8c00", 6, "orb");
+        spawnBullet(e.x, e.y, rand(0, TAU), rand(80, 140), "#ff8c00", 6, "orb");
       } else if (r === 1) {
         spawnBullet(e.x, e.y, a, 180, "#ff355e", 6, "needle");
       } else {
-        for (let i = 0; i < 4; i++) spawnBullet(e.x, e.y, (i / 4) * TAU, 120, "#ad5cff", 6, "orb");
+        for (let i = 0; i < 2; i++) spawnBullet(e.x, e.y, (i / 2) * TAU, 120, "#ad5cff", 6, "orb");
       }
     }
     // S1は何も出ない（現状通り）
@@ -3138,9 +3132,10 @@ function drawBeams() {
 
 function drawEnemyBullets() {
   ctx.save();
+  const bulletGlow = isVeryLiteRender() ? 0 : isLiteRender() || phase === "boss" ? 5 : 12;
   for (const b of enemyBullets) {
     ctx.shadowColor = b.color;
-    ctx.shadowBlur = 12;
+    ctx.shadowBlur = bulletGlow;
     ctx.fillStyle = b.color;
     if (b.kind === "ring") {
       ctx.save();
