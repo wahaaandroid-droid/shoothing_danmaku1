@@ -99,11 +99,9 @@ const STAGE_WAVES = [
   { t: 6.4, type: "exoticA" },
   { t: 7.2, type: "v" },
   { t: 9.6, type: "rain" },
-  { t: 10.4, type: "exoticB" },
   { t: 11.5, type: "ambush" },
   { t: 13.4, type: "medium" },
   { t: 15.5, type: "sweep", side: -1 },
-  { t: 16.3, type: "exoticA" },
   { t: 17.1, type: "pincer" },
   { t: 19.0, type: "v" },
   { t: 20.8, type: "exoticB" },
@@ -116,13 +114,11 @@ const STAGE_WAVES = [
   { t: 31.0, type: "v" },
   { t: 33.0, type: "rain" },
   { t: 34.5, type: "item", drop: "bomb" },
-  { t: 36.0, type: "exoticB" },
   { t: 38.0, type: "midboss" },
   { t: 43.5, type: "midboss2" },
   { t: 45.0, type: "exoticMix" },
   { t: 46.2, type: "pincer" },
   { t: 48.0, type: "item", drop: "life" },
-  { t: 49.0, type: "exoticA" },
   { t: 50.0, type: "ambush" },
   { t: 52.0, type: "cross" },
   { t: 53.0, type: "exoticMix" },
@@ -138,11 +134,9 @@ const STAGE_5_WAVES = [
   { t: 7.0, type: "v" },
   { t: 9.0, type: "rain" },
   { t: 10.8, type: "ambush" },
-  { t: 11.8, type: "exoticMix" },
   { t: 13.2, type: "medium" },
   { t: 15.4, type: "pincer" },
   { t: 17.2, type: "sweep", side: -1 },
-  { t: 18.8, type: "exoticA" },
   { t: 20.6, type: "v" },
   { t: 21.6, type: "exoticB" },
   { t: 22.4, type: "cross" },
@@ -150,14 +144,12 @@ const STAGE_5_WAVES = [
   { t: 26.5, type: "ambush" },
   { t: 28.0, type: "rain" },
   { t: 30.0, type: "medium" },
-  { t: 31.8, type: "exoticB" },
   { t: 34.5, type: "midboss" },
   { t: 38.8, type: "pincer" },
   { t: 40.2, type: "exoticMix" },
   { t: 42.0, type: "sweep", side: 1 },
   { t: 44.0, type: "cross" },
   { t: 47.0, type: "item", drop: "hyperCharge" },
-  { t: 47.8, type: "exoticA" },
   { t: 50.5, type: "v" },
   { t: 52.5, type: "rain" },
   { t: 55.5, type: "midboss2" },
@@ -167,13 +159,11 @@ const STAGE_5_WAVES = [
   { t: 67.2, type: "cross" },
   { t: 68.8, type: "exoticA" },
   { t: 70.0, type: "medium" },
-  { t: 72.0, type: "exoticB" },
   { t: 73.0, type: "rain" },
   { t: 76.0, type: "item", drop: "bomb" },
   { t: 79.0, type: "pincer" },
   { t: 80.2, type: "exoticB" },
   { t: 82.0, type: "final" },
-  { t: 84.8, type: "exoticMix" },
   { t: 88.0, type: "item", drop: "score" },
 ];
 
@@ -1588,17 +1578,17 @@ function updateBoss(dt) {
     if (def.no === 1) {
       // S1「幾何学」: 美しい秩序、隙間が見えるパターン
       const p = Math.floor((bossPhaseClock / 6.2) % 4);
-      if (p === 0) spiralBurst();
-      if (p === 1) flowerBurst();
-      if (p === 2) curtainRain();
-      if (p === 3) s1SymmetryFan();
+      if (p === 0) s1SymmetryFan();
+      if (p === 1) s1DiamondGrid();
+      if (p === 2) s1MirrorBox();
+      if (p === 3) s1PrismPulse();
 
     } else if (def.no === 2) {
       // S2「洪水」: 量と密度による圧迫、画面を埋め尽くす
       const p = Math.floor((bossPhaseClock / 5.4) % 4);
       if (p === 0) s2WallSpread();
       if (p === 1) s2RandomFlood();
-      if (p === 2) s2BurstRing();
+      if (p === 2) s2ColumnSurge();
       if (p === 3) s2TwinCurtain();
 
     } else if (def.no === 3) {
@@ -1606,17 +1596,17 @@ function updateBoss(dt) {
       const p = Math.floor((bossPhaseClock / 5.8) % 4);
       if (p === 0) s3TrackerFan();
       if (p === 1) s3HomingSpiral();
-      if (p === 2) aimedFans();
+      if (p === 2) s3CurseCross();
       if (p === 3) s3TripleTracker();
 
     } else if (def.no === 4) {
       // S4「変容」: 速弾と遅弾の混在、安全圏が消える
       const p = Math.floor((bossPhaseClock / 5.2) % 5);
-      if (p === 0) helixStorm();
-      if (p === 1) s4SlowFastMix();
-      if (p === 2) s4AccelSpiral();
-      if (p === 3) s4SplitRing();
-      if (p === 4) crossingLasers();
+      if (p === 0) s4SlowFastMix();
+      if (p === 1) s4AccelSpiral();
+      if (p === 2) s4SplitRing();
+      if (p === 3) crossingLasers();
+      if (p === 4) s4GravityWell();
 
     } else {
       // S5「侵食」: 全パターン統合＋専用、時間が経つほど苦しい
@@ -1637,25 +1627,13 @@ function bossShiftAttack(no) {
   const p = Math.floor((bossPhaseClock / phaseLen) % 4);
 
   if (no === 1) {
-    if (p === 0) shiftOrbitFan(10, 136, 0.16);
-    if (p === 1) shiftAimedSweep(2, 218, 0.12);
-    if (p === 2) shiftLaneRain(4, 132, 0.16);
-    if (p === 3) shiftCrossBurst(8, 158);
+    s1ShiftAttack(p);
   } else if (no === 2) {
-    if (p === 0) shiftLaneRain(6, 146, 0.2);
-    if (p === 1) shiftCrossBurst(12, 170);
-    if (p === 2) shiftAimedSweep(2, 224, 0.106);
-    if (p === 3) shiftOrbitFan(14, 144, 0.2);
+    s2ShiftAttack(p);
   } else if (no === 3) {
-    if (p === 0) shiftAimedSweep(3, 232, 0.096);
-    if (p === 1) shiftOrbitFan(15, 150, 0.22);
-    if (p === 2) shiftSideRain(3, 206);
-    if (p === 3) shiftCrossBurst(14, 178);
+    s3ShiftAttack(p);
   } else if (no === 4) {
-    if (p === 0) shiftCrossBurst(15, 184);
-    if (p === 1) shiftLaneRain(8, 160, 0.24);
-    if (p === 2) shiftAimedSweep(3, 242, 0.09);
-    if (p === 3) shiftSideRain(4, 224);
+    s4ShiftAttack(p);
   } else {
     if (p === 0) shiftOrbitFan(18, 160, 0.24);
     if (p === 1) shiftLaneRain(9, 178, 0.28);
@@ -1712,29 +1690,13 @@ function bossEnrageAttack(no) {
   const p = Math.floor((bossPhaseClock / phaseLen) % 5);
 
   if (no === 1) {
-    if (p === 0) enrageSpiral(12, 5.2, 162, 0.1);
-    if (p === 1) enrageAimedFan(2, 2, 222, 0.1);
-    if (p === 2) enrageLaneCurtain(5, 148, 0.2);
-    if (p === 3) enrageSideClamp(3, 216);
-    if (p === 4) enrageSnapRing(12, 194);
+    s1EnrageAttack(p);
   } else if (no === 2) {
-    if (p === 0) enrageLaneCurtain(7, 170, 0.24);
-    if (p === 1) enrageSpiral(15, 5.9, 166, 0.14);
-    if (p === 2) enrageRandomBurst(9, 140, 232);
-    if (p === 3) enrageAimedFan(3, 2, 242, 0.092);
-    if (p === 4) enrageSideClamp(3, 224);
+    s2EnrageAttack(p);
   } else if (no === 3) {
-    if (p === 0) enrageAimedFan(4, 2, 236, 0.082);
-    if (p === 1) enrageSpiral(17, 6.3, 174, 0.16);
-    if (p === 2) enrageSideClamp(4, 234);
-    if (p === 3) enrageSnapRing(15, 212);
-    if (p === 4) enrageTrackerNeedles(2, 260);
+    s3EnrageAttack(p);
   } else if (no === 4) {
-    if (p === 0) enrageSpiral(18, 6.8, 178, 0.18);
-    if (p === 1) enrageSlowFastTrap(15);
-    if (p === 2) enrageLaneCurtain(8, 190, 0.3);
-    if (p === 3) enrageTrackerNeedles(3, 278);
-    if (p === 4) enrageSideClamp(5, 244);
+    s4EnrageAttack(p);
   } else {
     if (p === 0) enrageSpiral(21, 7.4, 186, 0.2);
     if (p === 1) enrageLaneCurtain(10, 210, 0.34);
@@ -2173,6 +2135,92 @@ function s1SymmetryFan() {
   }
 }
 
+function s1DiamondGrid() {
+  const anchors = [-72, 0, 72];
+  for (let row = 0; row < anchors.length; row++) {
+    const x = boss.x + anchors[row];
+    const y = boss.y + 18 + row * 12;
+    for (const angle of [Math.PI / 2 - 0.42, Math.PI / 2 + 0.42]) {
+      spawnBullet(x, y, angle, 118 + row * 12, row % 2 ? "#62eaff" : "#ffe66d", 6, "ring");
+    }
+  }
+}
+
+function s1MirrorBox() {
+  const rows = [190, 265, 340];
+  rows.forEach((y, i) => {
+    const sway = Math.sin(time * 1.8 + i) * 0.08;
+    spawnBullet(38, y, sway, 132 + i * 12, "#62eaff", 5, "needle");
+    spawnBullet(W - 38, y, Math.PI - sway, 132 + i * 12, "#ff7a30", 5, "needle");
+  });
+}
+
+function s1PrismPulse() {
+  const points = [-84, -28, 28, 84];
+  points.forEach((ox, i) => {
+    const angle = Math.PI / 2 + (i - 1.5) * 0.13 + Math.sin(time * 2 + i) * 0.04;
+    spawnBullet(boss.x + ox, boss.y + 18, angle, 136 + (i % 2) * 18, i % 2 ? "#8ff6ff" : "#fff2a8", 6, "star");
+  });
+}
+
+function s1CompassNeedles(count, speed) {
+  for (let i = 0; i < count; i++) {
+    const ox = (i - (count - 1) / 2) * 34;
+    const lean = (i - (count - 1) / 2) * 0.055;
+    spawnBullet(boss.x + ox, boss.y + 26, Math.PI / 2 + lean, speed + Math.abs(ox) * 0.12, i % 2 ? "#62eaff" : "#ffe66d", 5, "needle");
+  }
+}
+
+function s1ShiftAttack(p) {
+  if (p === 0) {
+    s1DiamondGrid();
+    return;
+  }
+  if (p === 1) {
+    s1CompassNeedles(7, 150);
+    return;
+  }
+  if (p === 2) {
+    s1MirrorBox();
+    spawnBullet(boss.x, boss.y + 28, Math.PI / 2, 168, "#ffe66d", 6, "ring");
+    return;
+  }
+  for (let i = -2; i <= 2; i++) {
+    spawnBullet(boss.x - 64, boss.y + 28, Math.PI / 2 + i * 0.1, 158 + Math.abs(i) * 12, "#ff7a30", 5, "needle");
+    spawnBullet(boss.x + 64, boss.y + 28, Math.PI / 2 - i * 0.1, 158 + Math.abs(i) * 12, "#62eaff", 5, "needle");
+  }
+}
+
+function s1EnrageAttack(p) {
+  if (p === 0) {
+    s1CompassNeedles(9, 178);
+    s1PrismPulse();
+    return;
+  }
+  if (p === 1) {
+    for (let side = -1; side <= 1; side += 2) {
+      for (let i = -3; i <= 3; i++) {
+        spawnBullet(boss.x + side * 76, boss.y + 30, Math.PI / 2 + i * 0.085 + side * 0.04, 178 + Math.abs(i) * 12, side > 0 ? "#62eaff" : "#ff7a30", 5, "needle");
+      }
+    }
+    return;
+  }
+  if (p === 2) {
+    s1MirrorBox();
+    s1PrismPulse();
+    return;
+  }
+  if (p === 3) {
+    for (const x of [boss.x - 88, boss.x, boss.x + 88]) {
+      spawnBullet(x, boss.y + 18, Math.PI / 2 - 0.22, 154, "#8ff6ff", 6, "ring");
+      spawnBullet(x, boss.y + 18, Math.PI / 2 + 0.22, 154, "#fff2a8", 6, "ring");
+    }
+    return;
+  }
+  s1DiamondGrid();
+  s1PrismPulse();
+}
+
 // ═══════════════════════════════════════════════
 //  S2 専用パターン（洪水・量の暴力）
 // ═══════════════════════════════════════════════
@@ -2233,6 +2281,74 @@ function s2TwinCurtain() {
   }
 }
 
+function s2ColumnSurge() {
+  const lanes = 6;
+  const gap = Math.floor((bossPhaseClock * 1.2) % lanes);
+  for (let i = 0; i < lanes; i++) {
+    if (i === gap) continue;
+    const x = 58 + i * ((W - 116) / (lanes - 1));
+    const sway = Math.sin(time * 1.7 + i) * 0.11;
+    spawnBullet(x, 8, Math.PI / 2 + sway, 116 + (i % 2) * 18, i % 2 ? "#62eaff" : "#ff9f45", 7, "petal");
+  }
+}
+
+function s2ShiftAttack(p) {
+  if (p === 0) {
+    s2ColumnSurge();
+    return;
+  }
+  if (p === 1) {
+    const rows = [180, 270, 360, 450];
+    rows.forEach((y, i) => {
+      const speed = 142 + i * 10;
+      spawnBullet(-28, y, 0.08 + Math.sin(time + i) * 0.07, speed, "#62eaff", 6, "wave");
+      if (i % 2 === 0) spawnBullet(W + 28, y + 28, Math.PI - 0.08, speed * 0.92, "#ff9f45", 6, "wave");
+    });
+    return;
+  }
+  if (p === 2) {
+    for (let i = 0; i < 9; i++) {
+      spawnBullet(rand(58, W - 58), boss.y + rand(8, 46), Math.PI / 2 + rand(-0.18, 0.18), rand(112, 166), i % 2 ? "#ffe66d" : "#62eaff", 6, "ring");
+    }
+    return;
+  }
+  s2TwinCurtain();
+}
+
+function s2EnrageAttack(p) {
+  if (p === 0) {
+    const lanes = 8;
+    const gap = Math.floor((bossPhaseClock * 1.6) % lanes);
+    for (let i = 0; i < lanes; i++) {
+      if (i === gap || i === gap + 1) continue;
+      const x = 44 + i * ((W - 88) / (lanes - 1));
+      spawnBullet(x, 0, Math.PI / 2 + Math.sin(time * 2 + i) * 0.14, 154, "#62eaff", 6, "ring");
+    }
+    return;
+  }
+  if (p === 1) {
+    for (let i = 0; i < 5; i++) {
+      const y = 170 + i * 72;
+      spawnBullet(-32, y, 0.12, 190 + i * 12, "#ff9f45", 5, "wave");
+      spawnBullet(W + 32, y + 36, Math.PI - 0.12, 190 + i * 12, "#62eaff", 5, "wave");
+    }
+    return;
+  }
+  if (p === 2) {
+    for (let i = 0; i < 13; i++) {
+      spawnBullet(rand(44, W - 44), boss.y + rand(-10, 52), Math.PI / 2 + rand(-0.26, 0.26), rand(142, 206), i % 2 ? "#ffe66d" : "#62eaff", 6, "petal");
+    }
+    return;
+  }
+  if (p === 3) {
+    s2ColumnSurge();
+    for (let i = 0; i < 4; i++) spawnBullet(boss.x + (i - 1.5) * 52, boss.y + 36, Math.PI / 2, 214, "#ff9f45", 5, "needle");
+    return;
+  }
+  s2TwinCurtain();
+  s2ColumnSurge();
+}
+
 // ═══════════════════════════════════════════════
 //  S3 専用パターン（自機狙い・動き続けることが解答）
 // ═══════════════════════════════════════════════
@@ -2271,6 +2387,75 @@ function s3TripleTracker() {
     const a = aim + (deg * Math.PI) / 180;
     spawnBullet(boss.x, boss.y + 20, a, 188, "#8ff6ff", 5, "laser");
   });
+}
+
+function s3CurseCross() {
+  const aim = Math.atan2(player.y - boss.y, player.x - boss.x);
+  const ghosts = [
+    { x: boss.x - 84, y: boss.y + 12 },
+    { x: boss.x + 84, y: boss.y + 12 },
+    { x: boss.x, y: boss.y + 58 },
+  ];
+  ghosts.forEach((g, idx) => {
+    for (let i = -1; i <= 1; i++) {
+      spawnBullet(g.x, g.y, aim + i * 0.13 + (idx - 1) * 0.05, 170 + idx * 18, idx % 2 ? "#ad5cff" : "#ff4fcf", 5, "needle");
+    }
+  });
+}
+
+function s3ShiftAttack(p) {
+  const aim = Math.atan2(player.y - boss.y, player.x - boss.x);
+  if (p === 0) {
+    for (let i = -3; i <= 3; i++) spawnBullet(boss.x, boss.y + 30, aim + i * 0.075, 204 + Math.abs(i) * 10, "#ff4fcf", 5, "needle");
+    return;
+  }
+  if (p === 1) {
+    const origins = [-92, -46, 46, 92];
+    origins.forEach((ox, i) => {
+      const a = Math.atan2(player.y - (boss.y + 26), player.x - (boss.x + ox));
+      spawnBullet(boss.x + ox, boss.y + 26, a + Math.sin(time + i) * 0.08, 188 + i * 14, "#8ff6ff", 5, "laser");
+    });
+    return;
+  }
+  if (p === 2) {
+    s3CurseCross();
+    return;
+  }
+  for (let i = 0; i < 8; i++) {
+    const a = aim + (i - 3.5) * 0.055;
+    spawnBullet(boss.x + Math.sin(i) * 70, boss.y + 24, a, 162 + i * 10, i % 2 ? "#ad5cff" : "#ff355e", 6, "orb");
+  }
+}
+
+function s3EnrageAttack(p) {
+  const aim = Math.atan2(player.y - boss.y, player.x - boss.x);
+  if (p === 0) {
+    for (let row = 0; row < 3; row++) {
+      for (let i = -2; i <= 2; i++) spawnBullet(boss.x + (row - 1) * 48, boss.y + 24, aim + i * 0.075 + row * 0.035, 220 + row * 18, "#ff355e", 5, "needle");
+    }
+    return;
+  }
+  if (p === 1) {
+    for (const x of [48, W - 48, boss.x]) {
+      const a = Math.atan2(player.y - boss.y, player.x - x);
+      spawnBullet(x, boss.y + 20, a, 242, "#8ff6ff", 5, "laser");
+      spawnBullet(x, boss.y + 20, a + 0.11, 194, "#ad5cff", 6, "orb");
+    }
+    return;
+  }
+  if (p === 2) {
+    s3CurseCross();
+    s3TripleTracker();
+    return;
+  }
+  if (p === 3) {
+    for (let i = 0; i < 10; i++) {
+      const a = aim + Math.sin(time * 2.5 + i) * 0.28;
+      spawnBullet(boss.x + (i - 4.5) * 18, boss.y + 26, a, 176 + i * 12, "#ff4fcf", 5, "needle");
+    }
+    return;
+  }
+  s3HomingSpiral();
 }
 
 // ═══════════════════════════════════════════════
@@ -2318,6 +2503,69 @@ function s4SplitRing() {
       spawnBullet(boss.x, boss.y, a + Math.PI / count, 200, "#ff355e", 5, "needle"); // 速い針
     }
   }
+}
+
+function s4GravityWell() {
+  const count = 9;
+  const base = time * 1.8;
+  for (let i = 0; i < count; i++) {
+    const a = base + (i / count) * TAU;
+    spawnBullet(boss.x + Math.cos(a) * 58, boss.y + Math.sin(a) * 28, a + Math.PI / 2, 96 + (i % 3) * 42, i % 2 ? "#ad5cff" : "#ff8642", 7, "orb");
+  }
+}
+
+function s4ShiftAttack(p) {
+  if (p === 0) {
+    s4SlowFastMix();
+    return;
+  }
+  if (p === 1) {
+    for (let arm = 0; arm < 4; arm++) {
+      const base = time * 3.2 + arm * TAU / 4;
+      for (let i = 0; i < 3; i++) spawnBullet(boss.x, boss.y + 12, base + i * 0.12, 118 + i * 62, arm % 2 ? "#ff8642" : "#62eaff", 5, "needle");
+    }
+    return;
+  }
+  if (p === 2) {
+    crossingLasers();
+    return;
+  }
+  s4GravityWell();
+  s4SplitRing();
+}
+
+function s4EnrageAttack(p) {
+  if (p === 0) {
+    const count = 16;
+    const base = time * 4.1;
+    for (let i = 0; i < count; i++) {
+      const a = base + (i / count) * TAU;
+      const speed = i % 2 === 0 ? 86 : 248;
+      spawnBullet(boss.x, boss.y, a + (i % 2 ? 0.12 : 0), speed, i % 2 ? "#ff355e" : "#ad5cff", i % 2 ? 5 : 8, i % 2 ? "needle" : "orb");
+    }
+    return;
+  }
+  if (p === 1) {
+    for (let i = -2; i <= 2; i++) {
+      spawnBullet(boss.x - 92, boss.y + 22, Math.PI / 2 + i * 0.15, 230 + Math.abs(i) * 22, "#ff8642", 5, "laser");
+      spawnBullet(boss.x + 92, boss.y + 22, Math.PI / 2 - i * 0.15, 230 + Math.abs(i) * 22, "#ad5cff", 5, "laser");
+    }
+    return;
+  }
+  if (p === 2) {
+    s4GravityWell();
+    return;
+  }
+  if (p === 3) {
+    const count = 14;
+    for (let i = 0; i < count; i++) {
+      const a = bossPhaseClock * 1.2 + (i / count) * TAU;
+      spawnBullet(boss.x, boss.y + 10, a, 122 + (i % 4) * 42, "#62eaff", 6, i % 2 ? "wave" : "star");
+    }
+    return;
+  }
+  s4SlowFastMix();
+  crossingLasers();
 }
 
 // ═══════════════════════════════════════════════
@@ -2393,25 +2641,25 @@ function updateStageSpawns() {
   }
 
   // ステージ別の流れスポーンも分岐を増やして、道中の単調さを減らす
-  const spawnInterval = no === 1 ? 1.08 : no === 2 ? 0.88 : no === 3 ? 0.92 : no === 4 ? 0.96 : 0.78;
+  const spawnInterval = no === 1 ? 1.24 : no === 2 ? 1.04 : no === 3 ? 1.08 : no === 4 ? 1.12 : 0.96;
 
   if (enemyClock > spawnInterval) {
     enemyClock = 0;
 
     if (no === 1) {
       const r = Math.random();
-      if (r < 0.26) {
+      if (r < 0.18) {
         spawnExtraEnemy(0, rand(95, W - 95), -56, rand(-28, 28) * def.enemySpeed, 120 * def.enemySpeed);
-      } else if (r < 0.50) {
+      } else if (r < 0.34) {
         const side = Math.random() > 0.5 ? -1 : 1;
         spawnExtraEnemy(1, side < 0 ? -58 : W + 58, rand(220, 660), side * -120 * def.enemySpeed, rand(-10, 28));
-      } else if (r < 0.62) {
+      } else if (r < 0.42) {
         const side = Math.random() > 0.5 ? -1 : 1;
         spawnExtraEnemy(0, rand(105, W - 105), -64, rand(-20, 20) * def.enemySpeed, 112 * def.enemySpeed);
         spawnExtraEnemy(1, side < 0 ? -62 : W + 62, rand(250, 620), side * -108 * def.enemySpeed, rand(-8, 22));
-      } else if (r < 0.76) {
+      } else if (r < 0.61) {
         spawnEnemy(rand(90, W - 90), -42, rand(-34, 34) * def.enemySpeed, rand(135, 180) * def.enemySpeed, 1, 42, "small");
-      } else if (r < 0.90) {
+      } else if (r < 0.82) {
         spawnEnemy(-42, rand(250, 720), rand(118, 170) * def.enemySpeed, rand(-8, 34), 1, 42, "small");
         spawnEnemy(W + 42, rand(250, 720), -rand(118, 170) * def.enemySpeed, rand(-8, 34), -1, 42, "small");
       } else {
@@ -2421,20 +2669,20 @@ function updateStageSpawns() {
 
     } else if (no === 2) {
       const r = Math.random();
-      if (r < 0.25) {
+      if (r < 0.17) {
         const side = Math.random() > 0.5 ? -1 : 1;
         spawnExtraEnemy(0, side < 0 ? -70 : W + 70, rand(170, 600), side * -250 * def.enemySpeed, rand(18, 58));
-      } else if (r < 0.49) {
+      } else if (r < 0.34) {
         spawnExtraEnemy(1, rand(100, W - 100), -64, rand(-18, 18) * def.enemySpeed, 126 * def.enemySpeed);
-      } else if (r < 0.62) {
+      } else if (r < 0.43) {
         const side = Math.random() > 0.5 ? -1 : 1;
         spawnExtraEnemy(0, side < 0 ? -72 : W + 72, rand(180, 560), side * -228 * def.enemySpeed, rand(14, 48));
         spawnExtraEnemy(1, rand(110, W - 110), -70, rand(-14, 14) * def.enemySpeed, 118 * def.enemySpeed);
-      } else if (r < 0.76) {
+      } else if (r < 0.62) {
         const side = Math.random() > 0.5 ? -1 : 1;
         spawnEnemy(side < 0 ? -42 : W + 42, rand(150, 720), side * -rand(190, 270) * def.enemySpeed, rand(-12, 34), side, 42, "small");
         spawnEnemy(side < 0 ? -58 : W + 58, rand(150, 720), side * -rand(160, 230) * def.enemySpeed, rand(20, 58), side, 42, "small");
-      } else if (r < 0.90) {
+      } else if (r < 0.82) {
         spawnEnemy(rand(90, W - 90), -42, rand(-70, 70) * def.enemySpeed, rand(190, 250) * def.enemySpeed, 1, 42, "small");
       } else {
         spawnEnemy(-42, rand(180, 670), rand(210, 280) * def.enemySpeed, rand(-14, 24), 1, 42, "small");
@@ -2443,19 +2691,19 @@ function updateStageSpawns() {
 
     } else if (no === 3) {
       const r = Math.random();
-      if (r < 0.25) {
+      if (r < 0.17) {
         const side = Math.random() > 0.5 ? -1 : 1;
         spawnExtraEnemy(0, side < 0 ? -62 : W + 62, rand(190, 620), side * -142 * def.enemySpeed, rand(-16, 32));
-      } else if (r < 0.49) {
+      } else if (r < 0.34) {
         spawnExtraEnemy(1, rand(80, W - 80), -70, rand(-48, 48) * def.enemySpeed, 146 * def.enemySpeed);
-      } else if (r < 0.62) {
+      } else if (r < 0.43) {
         const side = Math.random() > 0.5 ? -1 : 1;
         spawnExtraEnemy(0, side < 0 ? -66 : W + 66, rand(210, 610), side * -132 * def.enemySpeed, rand(-12, 26));
         spawnExtraEnemy(1, rand(90, W - 90), -76, rand(-40, 40) * def.enemySpeed, 136 * def.enemySpeed);
-      } else if (r < 0.76) {
+      } else if (r < 0.62) {
         spawnEnemy(rand(80, W - 80), -42, rand(-34, 34) * def.enemySpeed, rand(170, 235) * def.enemySpeed, 1, 46, "small");
         spawnEnemy(rand(80, W - 80), -72, rand(-34, 34) * def.enemySpeed, rand(150, 205) * def.enemySpeed, -1, 46, "small");
-      } else if (r < 0.90) {
+      } else if (r < 0.82) {
         const y = rand(210, 680);
         spawnEnemy(-42, y, rand(165, 230) * def.enemySpeed, rand(-20, 35), 1, 46, "small");
         spawnEnemy(W + 42, y + rand(-50, 50), -rand(165, 230) * def.enemySpeed, rand(-20, 35), -1, 46, "small");
@@ -2467,16 +2715,16 @@ function updateStageSpawns() {
     } else if (no === 4) {
       const r = Math.random();
       const side = Math.random() > 0.5 ? -1 : 1;
-      if (r < 0.24) {
+      if (r < 0.17) {
         spawnExtraEnemy(0, rand(90, W - 90), -68, rand(-34, 34) * def.enemySpeed, 104 * def.enemySpeed);
-      } else if (r < 0.48) {
+      } else if (r < 0.34) {
         spawnExtraEnemy(1, side < 0 ? -66 : W + 66, rand(210, 620), side * -150 * def.enemySpeed, rand(-8, 24));
-      } else if (r < 0.62) {
+      } else if (r < 0.43) {
         spawnExtraEnemy(0, rand(100, W - 100), -74, rand(-26, 26) * def.enemySpeed, 98 * def.enemySpeed);
         spawnExtraEnemy(1, side < 0 ? -70 : W + 70, rand(230, 610), side * -138 * def.enemySpeed, rand(-6, 20));
-      } else if (r < 0.75) {
+      } else if (r < 0.61) {
         spawnEnemy(side < 0 ? -60 : W + 60, rand(200, 600), side * -rand(100, 150) * def.enemySpeed, rand(-5, 26), side, 260, "medium");
-      } else if (r < 0.90) {
+      } else if (r < 0.82) {
         spawnEnemy(rand(75, W - 75), -42, rand(-55, 55) * def.enemySpeed, rand(185, 245) * def.enemySpeed, 1, 50, "small");
         spawnEnemy(side < 0 ? -42 : W + 42, rand(200, 700), side * -rand(175, 245) * def.enemySpeed, rand(-12, 42), side, 50, "small");
       } else {
@@ -2485,22 +2733,22 @@ function updateStageSpawns() {
 
     } else {
       const r = Math.random();
-      if (r < 0.24) {
+      if (r < 0.17) {
         spawnExtraEnemy(0, rand(90, W - 90), -72, rand(-46, 46) * def.enemySpeed, 150 * def.enemySpeed);
-      } else if (r < 0.48) {
+      } else if (r < 0.34) {
         const side = Math.random() > 0.5 ? -1 : 1;
         spawnExtraEnemy(1, side < 0 ? -78 : W + 78, rand(190, 620), side * -118 * def.enemySpeed, rand(-8, 24));
-      } else if (r < 0.64) {
+      } else if (r < 0.45) {
         const side = Math.random() > 0.5 ? -1 : 1;
         spawnExtraEnemy(0, rand(90, W - 90), -78, rand(-38, 38) * def.enemySpeed, 136 * def.enemySpeed);
         spawnExtraEnemy(1, side < 0 ? -82 : W + 82, rand(210, 600), side * -110 * def.enemySpeed, rand(-6, 20));
-      } else if (r < 0.76) {
+      } else if (r < 0.62) {
         spawnEnemy(rand(60, W - 60), -42, rand(-48, 48) * def.enemySpeed, rand(190, 260) * def.enemySpeed, 1, 52, "small");
         spawnEnemy(rand(60, W - 60), -84, rand(-48, 48) * def.enemySpeed, rand(170, 235) * def.enemySpeed, -1, 52, "small");
-      } else if (r < 0.88) {
+      } else if (r < 0.82) {
         spawnEnemy(-42, rand(160, 700), rand(210, 285) * def.enemySpeed, rand(-16, 34), 1, 52, "small");
         spawnEnemy(W + 42, rand(160, 700), -rand(210, 285) * def.enemySpeed, rand(-16, 34), -1, 52, "small");
-      } else if (r < 0.94) {
+      } else if (r < 0.91) {
         const side = Math.random() > 0.5 ? -1 : 1;
         spawnEnemy(side < 0 ? -62 : W + 62, rand(220, 600), side * -rand(115, 160) * def.enemySpeed, rand(-6, 24), side, 260, "medium");
       } else {
@@ -2525,9 +2773,9 @@ function spawnExtraWave(wave) {
   const no = def.no;
   const slots = wave.type === "exoticA" ? [0] : wave.type === "exoticB" ? [1] : [0, 1];
   for (const slot of slots) {
-    const count = wave.type === "exoticMix" ? (no >= 5 ? 4 : 3) : no >= 4 ? 4 : 3;
+    const count = wave.type === "exoticMix" ? (no >= 5 ? 3 : 2) : no >= 4 ? 3 : 2;
     for (let i = 0; i < count; i++) {
-      const spread = count <= 3 ? 136 : 110;
+      const spread = count <= 2 ? 170 : 130;
       const x = W / 2 + (i - (count - 1) / 2) * spread + (slot ? 34 : -34);
       const y = -72 - i * 48 - slot * 32;
       const vx = (i - (count - 1) / 2) * (slot ? 18 : -18) * def.enemySpeed;
