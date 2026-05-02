@@ -25,13 +25,13 @@ const PLAYER_HITBOX_OFFSET_X = 5;
 const PLAYER_HITBOX_OFFSET_Y = -6;
 const BOSS_HP_MULTIPLIER = 2;
 const MIDBOSS_HP_MULTIPLIER = 3;
-const BOSS_BULLET_SPEED_MULTIPLIER = 1.22;
+const BOSS_BULLET_SPEED_MULTIPLIER = 1.14;
 const BOSS_SHIFT_HP_RATIO = 0.66;
-const BOSS_SHIFT_INTERVAL_MULTIPLIER = 0.82;
-const BOSS_SHIFT_BULLET_SPEED_MULTIPLIER = 1.14;
+const BOSS_SHIFT_INTERVAL_MULTIPLIER = 0.9;
+const BOSS_SHIFT_BULLET_SPEED_MULTIPLIER = 1.08;
 const BOSS_ENRAGE_HP_RATIO = 0.33;
-const BOSS_ENRAGE_INTERVAL_MULTIPLIER = 0.52;
-const BOSS_ENRAGE_BULLET_SPEED_MULTIPLIER = 1.34;
+const BOSS_ENRAGE_INTERVAL_MULTIPLIER = 0.62;
+const BOSS_ENRAGE_BULLET_SPEED_MULTIPLIER = 1.24;
 const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
 const pointSegmentDistance = (p, a, b) => {
   const dx = b.x - a.x;
@@ -96,6 +96,7 @@ const STAGE_WAVES = [
   { t: 0.8, type: "sweep", side: -1 },
   { t: 3.8, type: "sweep", side: 1 },
   { t: 5.7, type: "cross" },
+  { t: 6.4, type: "exoticA" },
   { t: 7.2, type: "v" },
   { t: 9.6, type: "rain" },
   { t: 11.5, type: "ambush" },
@@ -103,6 +104,7 @@ const STAGE_WAVES = [
   { t: 15.5, type: "sweep", side: -1 },
   { t: 17.1, type: "pincer" },
   { t: 19.0, type: "v" },
+  { t: 20.8, type: "exoticB" },
   { t: 22.0, type: "item", drop: "power" },
   { t: 23.0, type: "ambush" },
   { t: 25.0, type: "medium" },
@@ -113,6 +115,7 @@ const STAGE_WAVES = [
   { t: 34.5, type: "item", drop: "bomb" },
   { t: 38.0, type: "midboss" },
   { t: 43.5, type: "midboss2" },
+  { t: 45.0, type: "exoticMix" },
   { t: 46.2, type: "pincer" },
   { t: 48.0, type: "item", drop: "life" },
   { t: 50.0, type: "ambush" },
@@ -125,6 +128,7 @@ const STAGE_5_WAVES = [
   { t: 0.8, type: "sweep", side: -1 },
   { t: 3.8, type: "sweep", side: 1 },
   { t: 5.8, type: "cross" },
+  { t: 6.3, type: "exoticA" },
   { t: 7.0, type: "v" },
   { t: 9.0, type: "rain" },
   { t: 10.8, type: "ambush" },
@@ -132,6 +136,7 @@ const STAGE_5_WAVES = [
   { t: 15.4, type: "pincer" },
   { t: 17.2, type: "sweep", side: -1 },
   { t: 20.6, type: "v" },
+  { t: 21.6, type: "exoticB" },
   { t: 22.4, type: "cross" },
   { t: 24.0, type: "item", drop: "power" },
   { t: 26.5, type: "ambush" },
@@ -139,6 +144,7 @@ const STAGE_5_WAVES = [
   { t: 30.0, type: "medium" },
   { t: 34.5, type: "midboss" },
   { t: 38.8, type: "pincer" },
+  { t: 40.2, type: "exoticMix" },
   { t: 42.0, type: "sweep", side: 1 },
   { t: 44.0, type: "cross" },
   { t: 47.0, type: "item", drop: "hyperCharge" },
@@ -148,10 +154,12 @@ const STAGE_5_WAVES = [
   { t: 59.8, type: "pincer" },
   { t: 64.0, type: "ambush" },
   { t: 67.2, type: "cross" },
+  { t: 68.8, type: "exoticA" },
   { t: 70.0, type: "medium" },
   { t: 73.0, type: "rain" },
   { t: 76.0, type: "item", drop: "bomb" },
   { t: 79.0, type: "pincer" },
+  { t: 80.2, type: "exoticB" },
   { t: 82.0, type: "final" },
   { t: 88.0, type: "item", drop: "score" },
 ];
@@ -215,6 +223,10 @@ bossExplosionSheet.onload = () => render();
 const bossPartSheet = new Image();
 bossPartSheet.src = "assets/boss-parts.png";
 bossPartSheet.onload = () => render();
+
+const stageExtraEnemySheet = new Image();
+stageExtraEnemySheet.src = "assets/stage-extra-enemies.png";
+stageExtraEnemySheet.onload = () => render();
 
 const bgm = {
   stage1: new Audio("BGM/BGM_Stage1_最初の警報.mp3"),
@@ -413,7 +425,7 @@ function mediaReady(track) {
 }
 
 function enemyBulletLimit() {
-  const phaseScale = phase === "boss" ? (boss.enraged ? 0.95 : 0.72) : phase === "bossDeath" ? 0.35 : 1;
+  const phaseScale = phase === "boss" ? (boss.enraged ? 0.78 : boss.shifted ? 0.68 : 0.62) : phase === "bossDeath" ? 0.35 : 1;
   return Math.max(IS_MOBILE_BROWSER ? 120 : 180, Math.floor(MAX_ENEMY_BULLETS * phaseScale * perfScale()));
 }
 
@@ -633,6 +645,40 @@ const itemSprites = {
   bomb: { sx: 534, sy: 159, sw: 416, sh: 453 },
   life: { sx: 1030, sy: 159, sw: 365, sh: 447 },
   score: { sx: 1464, sy: 177, sw: 409, sh: 417 },
+};
+
+const EXTRA_ENEMY_SPRITES = {
+  s1Jelly: { col: 0, row: 0 },
+  s1Shell: { col: 1, row: 0 },
+  s2Manta: { col: 2, row: 0 },
+  s2Orb: { col: 3, row: 0 },
+  s3Mask: { col: 4, row: 0 },
+  s3Moth: { col: 0, row: 1 },
+  s4Spider: { col: 1, row: 1 },
+  s4Saw: { col: 2, row: 1 },
+  s5Angel: { col: 3, row: 1 },
+  s5Hive: { col: 4, row: 1 },
+};
+
+const EXTRA_ENEMY_DEFS = {
+  s1Jelly: { stage: 1, hp: 110, r: 30, w: 92, h: 92, move: "float", attack: "droplet" },
+  s1Shell: { stage: 1, hp: 145, r: 30, w: 88, h: 88, move: "coil", attack: "spiral" },
+  s2Manta: { stage: 2, hp: 135, r: 32, w: 108, h: 82, move: "swoop", attack: "fork" },
+  s2Orb: { stage: 2, hp: 165, r: 30, w: 90, h: 90, move: "node", attack: "magnet" },
+  s3Mask: { stage: 3, hp: 155, r: 32, w: 86, h: 108, move: "wraith", attack: "curse" },
+  s3Moth: { stage: 3, hp: 175, r: 34, w: 112, h: 94, move: "flutter", attack: "crystal" },
+  s4Spider: { stage: 4, hp: 210, r: 34, w: 106, h: 90, move: "walker", attack: "web" },
+  s4Saw: { stage: 4, hp: 230, r: 36, w: 98, h: 98, move: "saw", attack: "sawring" },
+  s5Angel: { stage: 5, hp: 235, r: 34, w: 104, h: 100, move: "halo", attack: "halo" },
+  s5Hive: { stage: 5, hp: 275, r: 42, w: 116, h: 104, move: "hive", attack: "swarm" },
+};
+
+const EXTRA_ENEMY_KEYS = {
+  1: ["s1Jelly", "s1Shell"],
+  2: ["s2Manta", "s2Orb"],
+  3: ["s3Mask", "s3Moth"],
+  4: ["s4Spider", "s4Saw"],
+  5: ["s5Angel", "s5Hive"],
 };
 
 const BOSS_PART_LOADOUTS = {
@@ -1453,10 +1499,10 @@ function updateBossPhaseShift(def) {
     shake = Math.max(shake, 18);
     shockwaves.push({ x: boss.x, y: boss.y, life: 0.72, max: 0.72, radius: 12, color: "#62eaff" });
     shockwaves.push({ x: boss.x, y: boss.y, life: 1.05, max: 1.05, radius: 38, color: "#ffe66d" });
-    const count = 10 + def.no * 2;
+    const count = 8 + def.no * 2;
     for (let i = 0; i < count; i++) {
       const a = (i / count) * TAU + time * 0.25;
-      spawnBullet(boss.x, boss.y + 20, a, 120 + (i % 2) * 24, i % 2 ? "#62eaff" : "#ffe66d", 6, "ring");
+      spawnBullet(boss.x, boss.y + 20, a, 112 + (i % 2) * 22, i % 2 ? "#62eaff" : "#ffe66d", 6, "ring");
     }
   }
   return boss.shifted;
@@ -1473,10 +1519,10 @@ function updateBossEnrage(def) {
     shockwaves.push({ x: boss.x, y: boss.y, life: 0.9, max: 0.9, radius: 18, color: "#ff355e" });
     shockwaves.push({ x: boss.x, y: boss.y, life: 1.2, max: 1.2, radius: 46, color: "#ffe66d" });
 
-    const count = 18 + def.no * 2;
+    const count = 15 + def.no * 2;
     for (let i = 0; i < count; i++) {
       const a = (i / count) * TAU + time * 0.55;
-      spawnBullet(boss.x, boss.y + 24, a, 170 + (i % 3) * 38, i % 2 ? "#ff355e" : "#ffe66d", 5, i % 3 ? "needle" : "ring");
+      spawnBullet(boss.x, boss.y + 24, a, 158 + (i % 3) * 32, i % 2 ? "#ff355e" : "#ffe66d", 5, i % 3 ? "needle" : "ring");
     }
   }
   return boss.enraged;
@@ -1578,30 +1624,30 @@ function bossShiftAttack(no) {
   const p = Math.floor((bossPhaseClock / phaseLen) % 4);
 
   if (no === 1) {
-    if (p === 0) shiftOrbitFan(12, 142, 0.16);
+    if (p === 0) shiftOrbitFan(10, 136, 0.16);
     if (p === 1) shiftAimedSweep(2, 218, 0.12);
-    if (p === 2) shiftLaneRain(5, 136, 0.16);
-    if (p === 3) shiftCrossBurst(10, 166);
+    if (p === 2) shiftLaneRain(4, 132, 0.16);
+    if (p === 3) shiftCrossBurst(8, 158);
   } else if (no === 2) {
-    if (p === 0) shiftLaneRain(7, 152, 0.2);
-    if (p === 1) shiftCrossBurst(14, 180);
-    if (p === 2) shiftAimedSweep(3, 236, 0.1);
-    if (p === 3) shiftOrbitFan(16, 150, 0.2);
+    if (p === 0) shiftLaneRain(6, 146, 0.2);
+    if (p === 1) shiftCrossBurst(12, 170);
+    if (p === 2) shiftAimedSweep(2, 224, 0.106);
+    if (p === 3) shiftOrbitFan(14, 144, 0.2);
   } else if (no === 3) {
-    if (p === 0) shiftAimedSweep(4, 242, 0.09);
-    if (p === 1) shiftOrbitFan(18, 158, 0.22);
-    if (p === 2) shiftSideRain(4, 220);
-    if (p === 3) shiftCrossBurst(16, 188);
+    if (p === 0) shiftAimedSweep(3, 232, 0.096);
+    if (p === 1) shiftOrbitFan(15, 150, 0.22);
+    if (p === 2) shiftSideRain(3, 206);
+    if (p === 3) shiftCrossBurst(14, 178);
   } else if (no === 4) {
-    if (p === 0) shiftCrossBurst(18, 196);
-    if (p === 1) shiftLaneRain(9, 170, 0.24);
-    if (p === 2) shiftAimedSweep(4, 256, 0.082);
-    if (p === 3) shiftSideRain(5, 236);
+    if (p === 0) shiftCrossBurst(15, 184);
+    if (p === 1) shiftLaneRain(8, 160, 0.24);
+    if (p === 2) shiftAimedSweep(3, 242, 0.09);
+    if (p === 3) shiftSideRain(4, 224);
   } else {
-    if (p === 0) shiftOrbitFan(22, 170, 0.24);
-    if (p === 1) shiftLaneRain(10, 190, 0.28);
-    if (p === 2) shiftAimedSweep(5, 270, 0.075);
-    if (p === 3) shiftSideRain(6, 252);
+    if (p === 0) shiftOrbitFan(18, 160, 0.24);
+    if (p === 1) shiftLaneRain(9, 178, 0.28);
+    if (p === 2) shiftAimedSweep(4, 254, 0.082);
+    if (p === 3) shiftSideRain(5, 238);
   }
 }
 
@@ -1653,35 +1699,35 @@ function bossEnrageAttack(no) {
   const p = Math.floor((bossPhaseClock / phaseLen) % 5);
 
   if (no === 1) {
-    if (p === 0) enrageSpiral(15, 5.8, 170, 0.1);
-    if (p === 1) enrageAimedFan(3, 2, 238, 0.09);
-    if (p === 2) enrageLaneCurtain(6, 156, 0.2);
+    if (p === 0) enrageSpiral(12, 5.2, 162, 0.1);
+    if (p === 1) enrageAimedFan(2, 2, 222, 0.1);
+    if (p === 2) enrageLaneCurtain(5, 148, 0.2);
     if (p === 3) enrageSideClamp(3, 216);
-    if (p === 4) enrageSnapRing(14, 205);
+    if (p === 4) enrageSnapRing(12, 194);
   } else if (no === 2) {
-    if (p === 0) enrageLaneCurtain(8, 182, 0.24);
-    if (p === 1) enrageSpiral(18, 6.5, 176, 0.14);
-    if (p === 2) enrageRandomBurst(12, 150, 255);
-    if (p === 3) enrageAimedFan(4, 2, 265, 0.085);
-    if (p === 4) enrageSideClamp(4, 238);
+    if (p === 0) enrageLaneCurtain(7, 170, 0.24);
+    if (p === 1) enrageSpiral(15, 5.9, 166, 0.14);
+    if (p === 2) enrageRandomBurst(9, 140, 232);
+    if (p === 3) enrageAimedFan(3, 2, 242, 0.092);
+    if (p === 4) enrageSideClamp(3, 224);
   } else if (no === 3) {
-    if (p === 0) enrageAimedFan(5, 3, 252, 0.074);
-    if (p === 1) enrageSpiral(20, 7.0, 184, 0.16);
-    if (p === 2) enrageSideClamp(5, 248);
-    if (p === 3) enrageSnapRing(18, 228);
-    if (p === 4) enrageTrackerNeedles(3, 285);
+    if (p === 0) enrageAimedFan(4, 2, 236, 0.082);
+    if (p === 1) enrageSpiral(17, 6.3, 174, 0.16);
+    if (p === 2) enrageSideClamp(4, 234);
+    if (p === 3) enrageSnapRing(15, 212);
+    if (p === 4) enrageTrackerNeedles(2, 260);
   } else if (no === 4) {
-    if (p === 0) enrageSpiral(22, 7.6, 190, 0.18);
-    if (p === 1) enrageSlowFastTrap(18);
-    if (p === 2) enrageLaneCurtain(10, 205, 0.3);
-    if (p === 3) enrageTrackerNeedles(4, 306);
-    if (p === 4) enrageSideClamp(6, 260);
+    if (p === 0) enrageSpiral(18, 6.8, 178, 0.18);
+    if (p === 1) enrageSlowFastTrap(15);
+    if (p === 2) enrageLaneCurtain(8, 190, 0.3);
+    if (p === 3) enrageTrackerNeedles(3, 278);
+    if (p === 4) enrageSideClamp(5, 244);
   } else {
-    if (p === 0) enrageSpiral(26, 8.4, 198, 0.2);
-    if (p === 1) enrageLaneCurtain(12, 230, 0.34);
-    if (p === 2) enrageAimedFan(6, 3, 318, 0.066);
-    if (p === 3) enrageSlowFastTrap(24);
-    if (p === 4) enrageRandomBurst(18, 185, 330);
+    if (p === 0) enrageSpiral(21, 7.4, 186, 0.2);
+    if (p === 1) enrageLaneCurtain(10, 210, 0.34);
+    if (p === 2) enrageAimedFan(5, 2, 288, 0.074);
+    if (p === 3) enrageSlowFastTrap(20);
+    if (p === 4) enrageRandomBurst(14, 165, 292);
   }
 }
 
@@ -1836,7 +1882,7 @@ function updateBossParts(dt, def) {
 
     part.x = home.x;
     part.y = home.y;
-    const phaseBoost = boss.enraged ? 0.7 : boss.shifted ? 0.86 : 1;
+    const phaseBoost = boss.enraged ? 0.82 : boss.shifted ? 0.95 : 1.08;
     part.fireClock += dt;
     if (part.fireClock > part.interval * phaseBoost) {
       part.fireClock = 0;
@@ -1864,7 +1910,7 @@ function updateBossPartBeams(dt) {
 
 function bossPartAttack(part, def) {
   const aim = Math.atan2(player.y - part.y, player.x - part.x);
-  const rank = boss.enraged ? 1.12 : boss.shifted ? 1.04 : 1;
+  const rank = boss.enraged ? 1.06 : boss.shifted ? 1 : 0.96;
   if (part.attack === "turret") {
     const spread = def.no >= 5 ? 0.11 : 0.14;
     const width = def.no >= 5 ? 3 : 2;
@@ -1880,8 +1926,8 @@ function bossPartAttack(part, def) {
       const a = aim + i * 0.18 + Math.sin(time + i) * 0.035;
       spawnBullet(part.x + i * 8, part.y, a, (210 + Math.abs(i) * 34) * rank, "#ff9f45", 6, "wave");
     }
-    for (let i = 0; i < 4; i++) {
-      spawnBullet(part.x, part.y, Math.PI / 2 + (i - 1.5) * 0.16, (132 + i * 18) * rank, "#ff355e", 5, "star");
+    for (let i = 0; i < 3; i++) {
+      spawnBullet(part.x, part.y, Math.PI / 2 + (i - 1) * 0.16, (132 + i * 18) * rank, "#ff355e", 5, "star");
     }
     return;
   }
@@ -1914,7 +1960,7 @@ function bossPartAttack(part, def) {
   }
 
   if (part.attack === "mine") {
-    const count = def.no >= 5 ? 9 : 6;
+    const count = def.no >= 5 ? 7 : 5;
     const offset = time * 0.7;
     for (let i = 0; i < count; i++) {
       const a = offset + (i / count) * TAU;
@@ -2341,9 +2387,14 @@ function updateStageSpawns() {
 
     if (no === 1) {
       const r = Math.random();
-      if (r < 0.28) {
+      if (r < 0.16) {
+        spawnExtraEnemy(0, rand(95, W - 95), -56, rand(-28, 28) * def.enemySpeed, 120 * def.enemySpeed);
+      } else if (r < 0.28) {
+        const side = Math.random() > 0.5 ? -1 : 1;
+        spawnExtraEnemy(1, side < 0 ? -58 : W + 58, rand(220, 660), side * -120 * def.enemySpeed, rand(-10, 28));
+      } else if (r < 0.44) {
         spawnEnemy(rand(90, W - 90), -42, rand(-34, 34) * def.enemySpeed, rand(135, 180) * def.enemySpeed, 1, 42, "small");
-      } else if (r < 0.56) {
+      } else if (r < 0.66) {
         spawnEnemy(-42, rand(250, 720), rand(118, 170) * def.enemySpeed, rand(-8, 34), 1, 42, "small");
         spawnEnemy(W + 42, rand(250, 720), -rand(118, 170) * def.enemySpeed, rand(-8, 34), -1, 42, "small");
       } else {
@@ -2353,11 +2404,16 @@ function updateStageSpawns() {
 
     } else if (no === 2) {
       const r = Math.random();
-      if (r < 0.34) {
+      if (r < 0.17) {
+        const side = Math.random() > 0.5 ? -1 : 1;
+        spawnExtraEnemy(0, side < 0 ? -70 : W + 70, rand(170, 600), side * -250 * def.enemySpeed, rand(18, 58));
+      } else if (r < 0.32) {
+        spawnExtraEnemy(1, rand(100, W - 100), -64, rand(-18, 18) * def.enemySpeed, 126 * def.enemySpeed);
+      } else if (r < 0.52) {
         const side = Math.random() > 0.5 ? -1 : 1;
         spawnEnemy(side < 0 ? -42 : W + 42, rand(150, 720), side * -rand(190, 270) * def.enemySpeed, rand(-12, 34), side, 42, "small");
         spawnEnemy(side < 0 ? -58 : W + 58, rand(150, 720), side * -rand(160, 230) * def.enemySpeed, rand(20, 58), side, 42, "small");
-      } else if (r < 0.68) {
+      } else if (r < 0.76) {
         spawnEnemy(rand(90, W - 90), -42, rand(-70, 70) * def.enemySpeed, rand(190, 250) * def.enemySpeed, 1, 42, "small");
       } else {
         spawnEnemy(-42, rand(180, 670), rand(210, 280) * def.enemySpeed, rand(-14, 24), 1, 42, "small");
@@ -2366,10 +2422,15 @@ function updateStageSpawns() {
 
     } else if (no === 3) {
       const r = Math.random();
-      if (r < 0.34) {
+      if (r < 0.16) {
+        const side = Math.random() > 0.5 ? -1 : 1;
+        spawnExtraEnemy(0, side < 0 ? -62 : W + 62, rand(190, 620), side * -142 * def.enemySpeed, rand(-16, 32));
+      } else if (r < 0.32) {
+        spawnExtraEnemy(1, rand(80, W - 80), -70, rand(-48, 48) * def.enemySpeed, 146 * def.enemySpeed);
+      } else if (r < 0.52) {
         spawnEnemy(rand(80, W - 80), -42, rand(-34, 34) * def.enemySpeed, rand(170, 235) * def.enemySpeed, 1, 46, "small");
         spawnEnemy(rand(80, W - 80), -72, rand(-34, 34) * def.enemySpeed, rand(150, 205) * def.enemySpeed, -1, 46, "small");
-      } else if (r < 0.68) {
+      } else if (r < 0.76) {
         const y = rand(210, 680);
         spawnEnemy(-42, y, rand(165, 230) * def.enemySpeed, rand(-20, 35), 1, 46, "small");
         spawnEnemy(W + 42, y + rand(-50, 50), -rand(165, 230) * def.enemySpeed, rand(-20, 35), -1, 46, "small");
@@ -2381,9 +2442,13 @@ function updateStageSpawns() {
     } else if (no === 4) {
       const r = Math.random();
       const side = Math.random() > 0.5 ? -1 : 1;
-      if (r < 0.24) {
+      if (r < 0.16) {
+        spawnExtraEnemy(0, rand(90, W - 90), -68, rand(-34, 34) * def.enemySpeed, 104 * def.enemySpeed);
+      } else if (r < 0.31) {
+        spawnExtraEnemy(1, side < 0 ? -66 : W + 66, rand(210, 620), side * -150 * def.enemySpeed, rand(-8, 24));
+      } else if (r < 0.48) {
         spawnEnemy(side < 0 ? -60 : W + 60, rand(200, 600), side * -rand(100, 150) * def.enemySpeed, rand(-5, 26), side, 260, "medium");
-      } else if (r < 0.55) {
+      } else if (r < 0.68) {
         spawnEnemy(rand(75, W - 75), -42, rand(-55, 55) * def.enemySpeed, rand(185, 245) * def.enemySpeed, 1, 50, "small");
         spawnEnemy(side < 0 ? -42 : W + 42, rand(200, 700), side * -rand(175, 245) * def.enemySpeed, rand(-12, 42), side, 50, "small");
       } else {
@@ -2392,13 +2457,18 @@ function updateStageSpawns() {
 
     } else {
       const r = Math.random();
-      if (r < 0.28) {
+      if (r < 0.14) {
+        spawnExtraEnemy(0, rand(90, W - 90), -72, rand(-46, 46) * def.enemySpeed, 150 * def.enemySpeed);
+      } else if (r < 0.28) {
+        const side = Math.random() > 0.5 ? -1 : 1;
+        spawnExtraEnemy(1, side < 0 ? -78 : W + 78, rand(190, 620), side * -118 * def.enemySpeed, rand(-8, 24));
+      } else if (r < 0.44) {
         spawnEnemy(rand(60, W - 60), -42, rand(-48, 48) * def.enemySpeed, rand(190, 260) * def.enemySpeed, 1, 52, "small");
         spawnEnemy(rand(60, W - 60), -84, rand(-48, 48) * def.enemySpeed, rand(170, 235) * def.enemySpeed, -1, 52, "small");
-      } else if (r < 0.58) {
+      } else if (r < 0.68) {
         spawnEnemy(-42, rand(160, 700), rand(210, 285) * def.enemySpeed, rand(-16, 34), 1, 52, "small");
         spawnEnemy(W + 42, rand(160, 700), -rand(210, 285) * def.enemySpeed, rand(-16, 34), -1, 52, "small");
-      } else if (r < 0.78) {
+      } else if (r < 0.84) {
         const side = Math.random() > 0.5 ? -1 : 1;
         spawnEnemy(side < 0 ? -62 : W + 62, rand(220, 600), side * -rand(115, 160) * def.enemySpeed, rand(-6, 24), side, 260, "medium");
       } else {
@@ -2409,11 +2479,41 @@ function updateStageSpawns() {
   }
 }
 
+function spawnExtraEnemy(slot, x, y, vx, vy, options = {}) {
+  const def = currentStage();
+  const keys = EXTRA_ENEMY_KEYS[def.no] || EXTRA_ENEMY_KEYS[1];
+  const spriteKey = keys[clamp(slot, 0, keys.length - 1)];
+  const extra = EXTRA_ENEMY_DEFS[spriteKey];
+  const side = options.side ?? (vx < 0 ? -1 : 1);
+  spawnEnemy(x, y, vx, vy, side, options.hp ?? extra.hp, "extra", spriteKey);
+}
+
+function spawnExtraWave(wave) {
+  const def = currentStage();
+  const no = def.no;
+  const slots = wave.type === "exoticA" ? [0] : wave.type === "exoticB" ? [1] : [0, 1];
+  for (const slot of slots) {
+    const count = wave.type === "exoticMix" ? (no >= 5 ? 3 : 2) : no >= 4 ? 3 : 2;
+    for (let i = 0; i < count; i++) {
+      const spread = count <= 2 ? 170 : 130;
+      const x = W / 2 + (i - (count - 1) / 2) * spread + (slot ? 34 : -34);
+      const y = -72 - i * 48 - slot * 32;
+      const vx = (i - (count - 1) / 2) * (slot ? 18 : -18) * def.enemySpeed;
+      const vy = (112 + no * 10 + slot * 18) * def.enemySpeed;
+      spawnExtraEnemy(slot, clamp(x, 62, W - 62), y, vx, vy, { side: slot ? 1 : -1 });
+    }
+  }
+}
+
 function spawnStageWave(wave) {
   const def = currentStage();
   const no = def.no;
 
   // ── item / midboss / midboss2 は全ステージ共通 ────────────
+  if (wave.type === "exoticA" || wave.type === "exoticB" || wave.type === "exoticMix") {
+    spawnExtraWave(wave);
+    return;
+  }
   if (wave.type === "midboss") {
     spawnEnemy(W / 2, -150, 0, 68 * def.enemySpeed, 1, 1750 * MIDBOSS_HP_MULTIPLIER, "midboss", def.midbossSprite);
     return;
@@ -2731,21 +2831,26 @@ function spawnStageWave(wave) {
 
 function spawnEnemy(x, y, vx, vy, side, hp, size = "small", spriteKey = null, drop = null) {
   const def = currentStage();
+  const extraDef = EXTRA_ENEMY_DEFS[spriteKey];
   const isMedium = size === "medium";
   const isMidboss = size === "midboss";
   const isCarrier = size === "carrier";
+  const isExtra = size === "extra";
   const scaledHp = Math.round(hp * def.enemyHp);
   enemies.push({
     x,
     y,
     vx,
     vy,
-    r: isMidboss ? 64 : isCarrier ? 28 : isMedium ? 34 : 18,
+    r: isExtra ? extraDef.r : isMidboss ? 64 : isCarrier ? 28 : isMedium ? 34 : 18,
     hp: scaledHp,
     maxHp: scaledHp,
     t: 0,
     side,
     size,
+    extraKey: extraDef ? spriteKey : null,
+    moveKind: extraDef ? extraDef.move : null,
+    attackKind: extraDef ? extraDef.attack : null,
     spriteKey: spriteKey || (isMidboss ? def.midbossSprite : isMedium ? def.mediumSprite : def.smallSprite),
     drop,
     hitFlash: 0,
@@ -2781,13 +2886,21 @@ function updateEntities(dt) {
     e.t += dt;
     e.hitFlash = Math.max(0, e.hitFlash - dt * 8);
     e.fireClock += dt;
-    e.x += e.vx * dt;
-    e.y += Math.sin(e.t * (e.size === "medium" || e.size === "midboss" ? 2.4 : 5)) * (e.size === "midboss" ? 8 : e.size === "medium" ? 18 : 42) * dt + e.vy * dt;
+    if (e.size === "extra") {
+      const drift = e.moveKind === "float" ? 62 : e.moveKind === "coil" ? 34 : e.moveKind === "swoop" ? 82 : e.moveKind === "wraith" ? 48 : e.moveKind === "flutter" ? 70 : e.moveKind === "saw" ? 56 : 38;
+      const freq = e.moveKind === "flutter" ? 5.8 : e.moveKind === "swoop" ? 4.4 : e.moveKind === "hive" ? 1.9 : 3.2;
+      e.x += e.vx * dt + Math.sin(e.t * freq + e.y * 0.012) * drift * dt;
+      e.y += e.vy * dt + Math.cos(e.t * (freq * 0.7)) * (e.moveKind === "walker" ? 18 : 10) * dt;
+      if (e.moveKind === "node" || e.moveKind === "hive") e.vx *= 0.995;
+    } else {
+      e.x += e.vx * dt;
+      e.y += Math.sin(e.t * (e.size === "medium" || e.size === "midboss" ? 2.4 : 5)) * (e.size === "midboss" ? 8 : e.size === "medium" ? 18 : 42) * dt + e.vy * dt;
+    }
     if (e.size === "midboss" && e.y > 210) {
       e.y += (210 - e.y) * Math.min(1, dt * 2);
       e.vy *= 0.96;
     }
-    const fireInterval = ((e.size === "midboss" ? 0.48 : e.size === "carrier" ? 1.7 : e.size === "medium" ? 1.0 : 1.45) * currentStage().fireRate) / hyperRankMultiplier();
+    const fireInterval = ((e.size === "midboss" ? 0.48 : e.size === "carrier" ? 1.7 : e.size === "medium" ? 1.0 : e.size === "extra" ? 0.86 : 1.45) * currentStage().fireRate) / hyperRankMultiplier();
     if ((phase === "stage" || phase === "boss") && e.fireClock > fireInterval && e.x > 34 && e.x < W - 34 && e.y > 44 && e.y < H - 110) fireEnemy(e);
   }
   for (const p of pickups) {
@@ -2875,6 +2988,11 @@ function fireEnemy(e) {
     return;
   }
 
+  if (e.size === "extra") {
+    fireExtraEnemy(e, a);
+    return;
+  }
+
   // ── ミッドボス: 案D ステージ別射撃 ───────────────────────
   if (e.size === "midboss") {
     if (no === 1) {
@@ -2954,6 +3072,61 @@ function fireEnemy(e) {
   }
 }
 
+function fireExtraEnemy(e, aim) {
+  const kind = e.attackKind;
+  if (kind === "droplet") {
+    for (let i = -1; i <= 1; i++) spawnBullet(e.x, e.y + 12, aim + i * 0.16, 118 + Math.abs(i) * 16, "#62eaff", 6, "petal");
+    return;
+  }
+  if (kind === "spiral") {
+    for (let i = 0; i < 6; i++) {
+      const a = time * 1.8 + (i / 6) * TAU;
+      spawnBullet(e.x, e.y, a, 84 + (i % 2) * 18, "#ad5cff", 7, "orb");
+    }
+    return;
+  }
+  if (kind === "fork") {
+    for (let i = -2; i <= 2; i++) spawnBullet(e.x, e.y, aim + i * 0.1, 166 + Math.abs(i) * 16, i % 2 ? "#ffe66d" : "#62eaff", 5, "wave");
+    return;
+  }
+  if (kind === "magnet") {
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * TAU + Math.sin(time) * 0.35;
+      if (i % 2 === 0) spawnBullet(e.x, e.y, a, 92, "#ffe66d", 6, "ring");
+    }
+    spawnBullet(e.x, e.y, aim, 190, "#62eaff", 5, "needle");
+    return;
+  }
+  if (kind === "curse") {
+    for (let i = -2; i <= 2; i++) spawnBullet(e.x, e.y + 6, aim + i * 0.13, 150 + Math.abs(i) * 22, "#ff4fcf", 6, "needle");
+    return;
+  }
+  if (kind === "crystal") {
+    for (let i = -3; i <= 3; i++) spawnBullet(e.x, e.y, Math.PI / 2 + i * 0.16 + Math.sin(time) * 0.08, 132 + Math.abs(i) * 12, "#d886ff", 6, "petal");
+    return;
+  }
+  if (kind === "web") {
+    for (let i = -1; i <= 1; i++) spawnBullet(e.x, e.y + 10, aim + i * 0.2, 160, "#ff9f45", 5, "wave");
+    spawnBullet(e.x, e.y, Math.PI / 2, 92, "#ad5cff", 8, "orb");
+    return;
+  }
+  if (kind === "sawring") {
+    for (let i = 0; i < 10; i += 2) spawnBullet(e.x, e.y, (i / 10) * TAU + time * 1.4, 154, "#ff8642", 5, "star");
+    return;
+  }
+  if (kind === "halo") {
+    for (let i = -2; i <= 2; i++) spawnBullet(e.x, e.y, aim + i * 0.09, 186 + Math.abs(i) * 18, i % 2 ? "#ad5cff" : "#62eaff", 5, "needle");
+    for (let i = 0; i < 4; i++) spawnBullet(e.x, e.y, (i / 4) * TAU + time, 104, "#ffe66d", 6, "ring");
+    return;
+  }
+  if (kind === "swarm") {
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * TAU + time * 0.6;
+      spawnBullet(e.x + Math.cos(a) * 24, e.y + Math.sin(a) * 18, a, 122, i % 2 ? "#62eaff" : "#ad5cff", 6, "orb");
+    }
+  }
+}
+
 function moveList(list, dt, extra) {
   for (const item of list) {
     if (extra) extra(item);
@@ -3019,7 +3192,7 @@ function collide() {
         e.hp -= beam.damage * (e.size === "midboss" ? 0.85 : 1.2);
         e.hitFlash = 1;
         addComboHits(1);
-        addHyperGauge(e.size === "midboss" ? 1.1 : 0.68);
+        addHyperGauge(e.size === "midboss" ? 1.1 : e.size === "extra" ? 0.82 : 0.68);
         if (Math.random() < 0.16) spawnHitSpark(e.x + rand(-e.r, e.r), e.y, "#bffcff", e.size === "midboss" ? 0.85 : 0.55);
         if (e.hp <= 0) killEnemy(e);
       }
@@ -3049,7 +3222,7 @@ function collide() {
         e.hitFlash = 1;
         spawnHitSpark(b.x, b.y, e.size === "medium" ? "#ffdf65" : "#8df8ff", e.size === "medium" ? 1.25 : 0.75);
         playSfx("hit", e.size === "medium" ? 0.18 : 0.12);
-        addHyperGauge(e.size === "midboss" ? 0.8 : e.size === "medium" ? 0.65 : 0.42);
+        addHyperGauge(e.size === "midboss" ? 0.8 : e.size === "extra" ? 0.62 : e.size === "medium" ? 0.65 : 0.42);
         playerBullets.splice(i, 1);
         if (e.hp <= 0) killEnemy(e);
         break;
@@ -3081,7 +3254,7 @@ function collide() {
         e.hitFlash = 1;
         spawnHitSpark(m.x, m.y, "#ffad45", 1.15);
         playSfx("missilehit", 0.17);
-        addHyperGauge(e.size === "midboss" ? 1.2 : 0.8);
+        addHyperGauge(e.size === "midboss" ? 1.2 : e.size === "extra" ? 1.0 : 0.8);
         missiles.splice(i, 1);
         consumed = true;
         if (e.hp <= 0) killEnemy(e);
@@ -3137,12 +3310,13 @@ function killEnemy(e) {
   if (e.dead) return;
   e.dead = true;
   e.hp = -999;
-  addScore(e.size === "midboss" ? 85000 : e.size === "medium" ? 26000 : e.size === "carrier" ? 16000 : 8200);
-  addComboHits(e.size === "midboss" ? 24 : e.size === "medium" ? 9 : 4);
-  massiveExplosion(e.x, e.y, e.size === "midboss" ? 1.4 : e.size === "medium" ? 0.95 : 0.5);
-  playSfx("explode", e.size === "midboss" ? 0.34 : e.size === "medium" ? 0.3 : 0.22);
+  addScore(e.size === "midboss" ? 85000 : e.size === "extra" ? 34000 : e.size === "medium" ? 26000 : e.size === "carrier" ? 16000 : 8200);
+  addComboHits(e.size === "midboss" ? 24 : e.size === "extra" ? 12 : e.size === "medium" ? 9 : 4);
+  massiveExplosion(e.x, e.y, e.size === "midboss" ? 1.4 : e.size === "extra" ? 0.9 : e.size === "medium" ? 0.95 : 0.5);
+  playSfx("explode", e.size === "midboss" ? 0.34 : e.size === "extra" ? 0.3 : e.size === "medium" ? 0.3 : 0.22);
   if (e.drop) scatterPickups(e.x, e.y, e.drop, 1);
   if (e.size === "midboss") scatterPickups(e.x, e.y, "hyperCharge", 1);
+  if (e.size === "extra" && Math.random() < 0.35) scatterPickups(e.x, e.y, "hyperCharge", 1, { speedMultiplier: 0.7, magnetDelay: 0.35 });
 
   // 案B: ステージ別 死亡時ばらまき（小型のみ）
   if (e.size === "small") {
@@ -3628,6 +3802,38 @@ function drawWingSpike(x, y, a, color) {
 
 function drawEnemies() {
   for (const e of enemies) {
+    const extraDef = EXTRA_ENEMY_DEFS[e.spriteKey];
+    const extraSprite = EXTRA_ENEMY_SPRITES[e.spriteKey];
+    if (extraDef && extraSprite && stageExtraEnemySheet.complete && stageExtraEnemySheet.naturalWidth) {
+      const cellW = Math.floor(stageExtraEnemySheet.naturalWidth / 5);
+      const cellH = Math.floor(stageExtraEnemySheet.naturalHeight / 2);
+      const w = extraDef.w;
+      const h = extraDef.h;
+      ctx.save();
+      ctx.translate(e.x, e.y);
+      ctx.scale(e.side < 0 ? -1 : 1, 1);
+      const rot = e.moveKind === "saw" ? e.t * 2.2 : e.moveKind === "flutter" ? Math.sin(e.t * 7) * 0.12 : Math.sin(e.t * 4) * 0.06;
+      ctx.shadowColor = e.hitFlash > 0 ? "#fff2a8" : extraDef.stage >= 5 ? "#ad5cff" : extraDef.stage >= 4 ? "#ff9f45" : extraDef.stage >= 3 ? "#ff4fcf" : "#62eaff";
+      ctx.shadowBlur = isLiteRender() ? 6 : 18;
+      drawSpriteFrom(stageExtraEnemySheet, {
+        sx: extraSprite.col * cellW,
+        sy: extraSprite.row * cellH,
+        sw: cellW,
+        sh: cellH,
+      }, 0, 0, w, h, rot, true);
+      if (e.hitFlash > 0) {
+        ctx.globalCompositeOperation = "screen";
+        ctx.globalAlpha = e.hitFlash * 0.7;
+        ctx.fillStyle = "#ffffff";
+        ctx.beginPath();
+        ctx.ellipse(0, 0, w * 0.4, h * 0.34, 0, 0, TAU);
+        ctx.fill();
+      }
+      ctx.globalCompositeOperation = "source-over";
+      drawBar(-w * 0.34, h * 0.45 + 8, w * 0.68, 5, e.hp / e.maxHp, "#ff713d", "#b46cff");
+      ctx.restore();
+      continue;
+    }
     const sprite = sprites[e.spriteKey] || stageAssetSprites[e.spriteKey] || stage5AssetSprites[e.spriteKey] || midbossItemSprites[e.spriteKey];
     const sheet = sprites[e.spriteKey] ? spriteSheet : stageAssetSprites[e.spriteKey] ? stageSpriteSheet : stage5AssetSprites[e.spriteKey] ? stage5AssetSheet : midbossItemSheet;
     if (sheet.complete && sheet.naturalWidth && sprite) {
