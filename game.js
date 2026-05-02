@@ -158,6 +158,10 @@ const hyperStockImage = new Image();
 hyperStockImage.src = "assets/hyper-stock.png";
 hyperStockImage.onload = () => render();
 
+const bossExplosionSheet = new Image();
+bossExplosionSheet.src = "assets/boss-death-explosion-sheet.png";
+bossExplosionSheet.onload = () => render();
+
 const bgm = {
   stage1: new Audio("BGM/BGM_Stage1_最初の警報.mp3"),
   boss1: new Audio("BGM/BGM_Stage1BOSS_弾幕の門.mp3"),
@@ -1361,7 +1365,7 @@ function updateBossDeath(dt) {
     shockwaves.push({ x: boss.x, y: boss.y, life: 1.35, max: 1.35, radius: 24, color: "#fff2a8" });
     shockwaves.push({ x: boss.x, y: boss.y, life: 1.7, max: 1.7, radius: 54, color: "#ff7c33" });
     shockwaves.push({ x: boss.x, y: boss.y, life: 2.1, max: 2.1, radius: 12, color: "#8df8ff" });
-    bossExplosionBurst(boss.x, boss.y, 4.2, 2.2);
+    bossExplosionBurst(boss.x, boss.y, 5.2, 2.8);
     for (let i = 0; i < 8; i++) {
       const a = (i / 8) * TAU + rand(-0.12, 0.12);
       bossExplosionBurst(boss.x + Math.cos(a) * boss.r * 0.95, boss.y + Math.sin(a) * boss.r * 0.55, rand(1.15, 1.85), 0.9);
@@ -2561,6 +2565,8 @@ function massiveExplosion(x, y, scale = 1) {
 }
 
 function bossExplosionBurst(x, y, scale = 1, intensity = 1) {
+  const frame = Math.floor(rand(0, 4));
+  explosions.push({ x, y, life: 0.72 * scale, max: 0.72 * scale, scale: scale * 1.45, bossArt: true, frame, rot: rand(-0.55, 0.55) });
   explosions.push({ x, y, life: 0.62 * scale, max: 0.62 * scale, scale });
   if (scale > 1.2) {
     shockwaves.push({ x, y, life: 0.62 + scale * 0.16, max: 0.62 + scale * 0.16, radius: 14 + scale * 8, color: scale > 2 ? "#fff2a8" : "#ff9a42" });
@@ -3285,6 +3291,24 @@ function drawEffects() {
     ctx.save();
     ctx.translate(e.x, e.y);
     ctx.globalAlpha = 1 - k;
+    if (e.bossArt && bossExplosionSheet.complete && bossExplosionSheet.naturalWidth) {
+      ctx.globalCompositeOperation = "screen";
+      ctx.globalAlpha = clamp((1 - k) * 1.25, 0, 1);
+      ctx.rotate((e.rot || 0) + k * 0.45);
+      const cols = 2;
+      const frame = e.frame || 0;
+      const sw = bossExplosionSheet.naturalWidth / cols;
+      const sh = bossExplosionSheet.naturalHeight / 2;
+      const sx = (frame % cols) * sw;
+      const sy = Math.floor(frame / cols) * sh;
+      const size = (260 + k * 180) * e.scale;
+      ctx.drawImage(bossExplosionSheet, sx, sy, sw, sh, -size / 2, -size / 2, size, size);
+      ctx.globalAlpha = clamp((1 - k) * 0.72, 0, 0.72);
+      ctx.rotate(-0.25);
+      ctx.drawImage(bossExplosionSheet, sx, sy, sw, sh, -size * 0.38, -size * 0.38, size * 0.76, size * 0.76);
+      ctx.restore();
+      continue;
+    }
     if (spriteSheet.complete && spriteSheet.naturalWidth && !isLiteRender()) {
       ctx.rotate(k * 0.4);
       drawSprite(sprites.explosion, 0, 0, 150 * e.scale * (0.55 + k), 120 * e.scale * (0.55 + k), 0, true);
