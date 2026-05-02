@@ -331,7 +331,7 @@ function playSfx(type, volume = 0.35) {
     return;
   }
   if (type === "missilehit") {
-    playExplosionPool(gameSe.explodeMedium, volume / 0.42);
+    playAudioPool(gameSe.enemyHit, volume / 0.24);
     return;
   }
   if (type === "mega") {
