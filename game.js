@@ -172,6 +172,10 @@ const gameSe = {
   explodeLarge: createAudioPool("SE/大爆発.m4a", 3, 0.86),
   enemyHit: createAudioPool("SE/敵に弾が当たった時のSE.mp3", 8, 0.62),
   bombStart: createAudioPool("SE/ボム発動音.mp3", 3, 0.82),
+  playerHit: createAudioPool("SE/自機被弾.mp3", 3, 0.86),
+};
+const seMix = {
+  explosionTimes: [],
 };
 let currentBgm = null;
 let audioContext = null;
@@ -292,13 +296,28 @@ function playAudioPool(pool, volume = 1) {
   track.play().catch(() => {});
 }
 
+function explosionStackGain() {
+  const now = performance.now() / 1000;
+  seMix.explosionTimes = seMix.explosionTimes.filter((t) => now - t < 0.18);
+  const stack = seMix.explosionTimes.length;
+  seMix.explosionTimes.push(now);
+  if (stack === 0) return 1;
+  if (stack === 1) return 0.72;
+  if (stack === 2) return 0.52;
+  return 0.36;
+}
+
+function playExplosionPool(pool, volume = 1) {
+  playAudioPool(pool, volume * explosionStackGain());
+}
+
 function playExplosionSe(volume = 0.3) {
   if (volume >= 0.42) {
-    playAudioPool(gameSe.explodeLarge, volume / 0.5);
+    playExplosionPool(gameSe.explodeLarge, volume / 0.5);
   } else if (volume >= 0.28) {
-    playAudioPool(gameSe.explodeMedium, volume / 0.34);
+    playExplosionPool(gameSe.explodeMedium, volume / 0.34);
   } else {
-    playAudioPool(gameSe.explodeSmall, volume / 0.24);
+    playExplosionPool(gameSe.explodeSmall, volume / 0.24);
   }
 }
 
@@ -312,14 +331,18 @@ function playSfx(type, volume = 0.35) {
     return;
   }
   if (type === "missilehit") {
-    playAudioPool(gameSe.explodeMedium, volume / 0.18);
+    playExplosionPool(gameSe.explodeMedium, volume / 0.42);
     return;
   }
   if (type === "mega") {
-    playAudioPool(gameSe.explodeLarge, volume / 0.46);
+    playExplosionPool(gameSe.explodeLarge, volume / 0.46);
   }
   if (type === "bomb") {
     playAudioPool(gameSe.bombStart, volume / 0.5);
+  }
+  if (type === "playerhit") {
+    playAudioPool(gameSe.playerHit, volume / 0.42);
+    return;
   }
   if (!audioContext) return;
   try {
