@@ -166,6 +166,12 @@ const hyperSe = {
   start: new Audio("SE/hyper発動時のSE.m4a"),
   loop: new Audio("SE/hyper発動中.m4a"),
 };
+const weaponSe = {
+  normalVulcan: new Audio("SE/通常バルカン.m4a"),
+  normalBeam: new Audio("SE/通常ビーム中.m4a"),
+  hyperVulcan: new Audio("SE/hyperバルカン音.m4a"),
+  hyperBeam: hyperSe.loop,
+};
 const gameSe = {
   explodeSmall: createAudioPool("SE/小爆発.m4a", 5, 0.18),
   explodeMedium: createAudioPool("SE/中爆発.m4a", 4, 0.34),
@@ -179,6 +185,7 @@ const seMix = {
   impactTimes: [],
 };
 let currentBgm = null;
+let currentWeaponSe = null;
 let audioContext = null;
 let bgmUnlocked = false;
 let bgmPlaySerial = 0;
@@ -190,9 +197,14 @@ for (const track of Object.values(bgm)) {
 }
 hyperSe.start.volume = 0.88;
 hyperSe.start.preload = "auto";
-hyperSe.loop.loop = true;
-hyperSe.loop.volume = 0.62;
-hyperSe.loop.preload = "auto";
+for (const track of Object.values(weaponSe)) {
+  track.loop = true;
+  track.preload = "auto";
+}
+weaponSe.normalVulcan.volume = 0.3;
+weaponSe.normalBeam.volume = 0.3;
+weaponSe.hyperVulcan.volume = 0.64;
+weaponSe.hyperBeam.volume = 0.62;
 
 function createAudioPool(src, size = 4, baseVolume = 1) {
   return {
@@ -218,6 +230,7 @@ function unlockBgm() {
   bgmUnlocked = true;
   for (const track of Object.values(bgm)) track.load();
   for (const track of Object.values(hyperSe)) track.load();
+  for (const track of Object.values(weaponSe)) track.load();
   for (const pool of Object.values(gameSe)) {
     for (const track of pool.tracks) track.load();
   }
@@ -743,14 +756,37 @@ function playHyperStartSe() {
   hyperSe.start.play().catch(() => {});
 }
 
-function startHyperLoopSe() {
-  hyperSe.loop.currentTime = 0;
-  hyperSe.loop.play().catch(() => {});
+function shouldPlayWeaponSe() {
+  return running && !paused && (phase === "stage" || phase === "silence" || phase === "boss");
+}
+
+function desiredWeaponSe() {
+  if (!shouldPlayWeaponSe()) return null;
+  if (player.hyperTime > 0) return player.laserActive ? weaponSe.hyperBeam : weaponSe.hyperVulcan;
+  return player.laserActive ? weaponSe.normalBeam : weaponSe.normalVulcan;
+}
+
+function updateWeaponLoopSe() {
+  const next = desiredWeaponSe();
+  if (currentWeaponSe === next) return;
+  if (currentWeaponSe) {
+    currentWeaponSe.pause();
+    currentWeaponSe.currentTime = 0;
+  }
+  currentWeaponSe = next;
+  if (currentWeaponSe) currentWeaponSe.play().catch(() => {});
+}
+
+function stopWeaponLoopSe() {
+  for (const track of Object.values(weaponSe)) {
+    track.pause();
+    track.currentTime = 0;
+  }
+  currentWeaponSe = null;
 }
 
 function stopHyperLoopSe() {
-  hyperSe.loop.pause();
-  hyperSe.loop.currentTime = 0;
+  stopWeaponLoopSe();
 }
 
 function fadeOutBgm(duration = 2.2) {
@@ -835,7 +871,7 @@ function resetGame() {
   bgmFade = null;
   stageFade = 0;
   nextStageNo = 1;
-  stopHyperLoopSe();
+  stopWeaponLoopSe();
   bulletClock = 0;
   enemyClock = 0;
   pickupClock = 0;
@@ -1060,6 +1096,7 @@ function loop(now) {
   const dt = Math.min(0.033, (now - last) / 1000);
   last = now;
   if (running && !paused) update(dt);
+  else updateWeaponLoopSe();
   render();
   if (running) requestAnimationFrame(loop);
 }
@@ -1101,6 +1138,7 @@ function update(dt) {
   if (phase !== "bossDeath" && phase !== "gameover" && phase !== "credits" && phase !== "stageTransition") collide();
   if (phase === "gameover" && gameOverClock > 2.8) showGameOverOverlay();
   if (phase === "clear" && phaseTimer > 4.4) advanceStage();
+  updateWeaponLoopSe();
 }
 
 function updatePlayer(dt) {
@@ -2337,7 +2375,6 @@ function useHyper() {
   flash = 0.72;
   shake = 14 + spent * 2;
   playHyperStartSe();
-  startHyperLoopSe();
   const removed = enemyBullets.splice(0, enemyBullets.length);
   for (let i = 0; i < removed.length; i += 3) {
     particles.push({ x: removed[i].x, y: removed[i].y, vx: rand(-210, 210), vy: rand(-250, 100), life: rand(0.42, 0.9), color: i % 2 ? "#b46cff" : "#8df8ff" });
