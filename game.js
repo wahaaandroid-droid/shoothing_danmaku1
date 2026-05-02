@@ -61,6 +61,7 @@ let perfLowTimer = 0;
 let perfGoodTimer = 0;
 let lastHitSparkAt = 0;
 let lastExplosionAt = 0;
+let bossDeathBoomStep = 0;
 
 const STAGE_DURATION = 62;
 const STAGE_WAVES = [
@@ -1009,6 +1010,7 @@ function clearStage() {
   phase = "bossDeath";
   phaseTimer = 0;
   bossDeathClock = 0;
+  bossDeathBoomStep = 0;
   phaseBanner = 0;
   enemyBullets.length = 0;
   enemies.length = 0;
@@ -1342,23 +1344,54 @@ function updateBoss(dt) {
 
 function updateBossDeath(dt) {
   boss.y += Math.sin(time * 9) * 8 * dt;
-  shake = Math.max(shake, bossDeathClock < 5.8 ? 9 : 18);
-  if (bossDeathClock < 5.6 && bulletClock > 0.16) {
+  shake = Math.max(shake, bossDeathClock < 5.8 ? 12 : 24);
+  playBossDeathBeats();
+  if (bossDeathClock < 5.6 && bulletClock > (IS_MOBILE_BROWSER ? 0.22 : 0.12)) {
     bulletClock = 0;
     const ox = rand(-boss.r * 1.5, boss.r * 1.5);
     const oy = rand(-boss.r * 0.9, boss.r * 0.9);
-    massiveExplosion(boss.x + ox, boss.y + oy, rand(0.65, 1.1));
-    playSfx("explode", 0.22);
+    const scale = bossDeathClock > 4.1 ? rand(1.15, 1.75) : bossDeathClock > 2.2 ? rand(0.85, 1.35) : rand(0.6, 1.05);
+    bossExplosionBurst(boss.x + ox, boss.y + oy, scale, bossDeathClock > 3 ? 1.2 : 0.9);
+    if (Math.random() < (IS_MOBILE_BROWSER ? 0.45 : 0.72)) playBossDeathPop(scale);
   }
   if (bossDeathClock >= 5.6 && boss.visible) {
     boss.visible = false;
     flash = 1;
-    shake = 28;
-    shockwaves.push({ x: boss.x, y: boss.y, life: 1.1, max: 1.1, radius: 30, color: "#fff2a8" });
-    massiveExplosion(boss.x, boss.y, 3.2);
-    playSfx("mega", 0.46);
+    shake = 42;
+    shockwaves.push({ x: boss.x, y: boss.y, life: 1.35, max: 1.35, radius: 24, color: "#fff2a8" });
+    shockwaves.push({ x: boss.x, y: boss.y, life: 1.7, max: 1.7, radius: 54, color: "#ff7c33" });
+    shockwaves.push({ x: boss.x, y: boss.y, life: 2.1, max: 2.1, radius: 12, color: "#8df8ff" });
+    bossExplosionBurst(boss.x, boss.y, 4.2, 2.2);
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * TAU + rand(-0.12, 0.12);
+      bossExplosionBurst(boss.x + Math.cos(a) * boss.r * 0.95, boss.y + Math.sin(a) * boss.r * 0.55, rand(1.15, 1.85), 0.9);
+    }
+    playBossDeathFinalSound();
   }
   if (bossDeathClock > 7.4) beginStageClear();
+}
+
+function playBossDeathBeats() {
+  const beats = [0.12, 0.75, 1.35, 2.05, 2.85, 3.65, 4.42, 5.08];
+  while (bossDeathBoomStep < beats.length && bossDeathClock >= beats[bossDeathBoomStep]) {
+    const step = bossDeathBoomStep++;
+    if (step < 2) playAudioPool(gameSe.explodeSmall, 0.9);
+    else if (step < 5) playAudioPool(gameSe.explodeMedium, 0.9);
+    else playAudioPool(gameSe.explodeLarge, 0.78);
+  }
+}
+
+function playBossDeathPop(scale = 1) {
+  if (scale > 1.35) playAudioPool(gameSe.explodeMedium, 0.48);
+  else playAudioPool(gameSe.explodeSmall, 0.55);
+}
+
+function playBossDeathFinalSound() {
+  playAudioPool(gameSe.explodeMedium, 0.95);
+  window.setTimeout(() => playAudioPool(gameSe.explodeSmall, 0.75), 70);
+  window.setTimeout(() => playAudioPool(gameSe.explodeMedium, 0.9), 140);
+  window.setTimeout(() => playAudioPool(gameSe.explodeLarge, 1), 220);
+  window.setTimeout(() => playAudioPool(gameSe.explodeLarge, 0.85), 420);
 }
 
 function updateCredits(dt) {
@@ -2179,8 +2212,8 @@ function cull() {
   removeWhere(damageTexts, (d) => d.life <= 0);
   trimList(particles, particleLimit());
   trimList(hitSparks, Math.max(IS_MOBILE_BROWSER ? 4 : 10, Math.floor(MAX_HIT_SPARKS * perfScale())));
-  trimList(explosions, Math.max(IS_MOBILE_BROWSER ? 3 : 8, Math.floor(MAX_EXPLOSIONS * perfScale())));
-  trimList(shockwaves, isVeryLiteRender() ? 4 : 8);
+  trimList(explosions, phase === "bossDeath" ? (IS_MOBILE_BROWSER ? 10 : 28) : Math.max(IS_MOBILE_BROWSER ? 3 : 8, Math.floor(MAX_EXPLOSIONS * perfScale())));
+  trimList(shockwaves, phase === "bossDeath" ? 10 : isVeryLiteRender() ? 4 : 8);
 }
 
 function removeWhere(list, predicate) {
@@ -2524,6 +2557,28 @@ function massiveExplosion(x, y, scale = 1) {
     const a = rand(0, TAU);
     const s = rand(50, 260) * scale;
     particles.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: isLiteRender() ? rand(0.18, 0.36) : rand(0.3, 0.9), color: Math.random() > 0.45 ? "#ff7c33" : "#7df4ff" });
+  }
+}
+
+function bossExplosionBurst(x, y, scale = 1, intensity = 1) {
+  explosions.push({ x, y, life: 0.62 * scale, max: 0.62 * scale, scale });
+  if (scale > 1.2) {
+    shockwaves.push({ x, y, life: 0.62 + scale * 0.16, max: 0.62 + scale * 0.16, radius: 14 + scale * 8, color: scale > 2 ? "#fff2a8" : "#ff9a42" });
+  }
+  const cap = IS_MOBILE_BROWSER ? 18 : 42;
+  const count = Math.min(cap, Math.max(5, Math.floor(18 * scale * intensity * perfScale())));
+  for (let i = 0; i < count && canAddParticle(); i++) {
+    const a = rand(0, TAU);
+    const s = rand(80, 360) * scale;
+    const hot = Math.random() > 0.34;
+    particles.push({
+      x: x + Math.cos(a) * rand(0, 18) * scale,
+      y: y + Math.sin(a) * rand(0, 14) * scale,
+      vx: Math.cos(a) * s,
+      vy: Math.sin(a) * s - rand(10, 85) * scale,
+      life: rand(0.28, 0.85) * (isLiteRender() ? 0.68 : 1),
+      color: hot ? "#ffb23f" : Math.random() > 0.5 ? "#fff2a8" : "#7df4ff",
+    });
   }
 }
 
