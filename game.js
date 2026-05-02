@@ -209,8 +209,8 @@ for (const track of Object.values(weaponSe)) {
   track.loop = true;
   track.preload = "auto";
 }
-weaponSe.normalVulcan.volume = 0.16;
-weaponSe.normalBeam.volume = 0.3;
+weaponSe.normalVulcan.volume = 0.1;
+weaponSe.normalBeam.volume = 0.2;
 weaponSe.hyperVulcan.volume = 0.18;
 weaponSe.hyperBeam.volume = 0.62;
 
