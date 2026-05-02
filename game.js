@@ -94,71 +94,124 @@ let bossDeathBoomStep = 0;
 
 const STAGE_DURATION = 62;
 const STAGE_1_WAVES = [
-  { t: 1.0, type: "triangle" },
+  { t: 0.8, type: "triangle" },
+  { t: 4.4, type: "sweep", side: -1 },
   { t: 7.4, type: "exoticA" },
+  { t: 10.6, type: "ambush" },
   { t: 14.8, type: "rain" },
+  { t: 18.2, type: "v" },
   { t: 21.6, type: "medium" },
+  { t: 24.3, type: "pincer" },
   { t: 27.8, type: "midboss" },
+  { t: 31.6, type: "sweep", side: 1 },
   { t: 34.8, type: "item", drop: "power" },
-  { t: 38.8, type: "cross" },
+  { t: 37.0, type: "triangle" },
+  { t: 40.4, type: "cross" },
+  { t: 43.2, type: "exoticB" },
   { t: 45.2, type: "exoticMix" },
+  { t: 48.0, type: "rain" },
   { t: 51.0, type: "midboss2" },
+  { t: 53.7, type: "pincer" },
   { t: 56.2, type: "final" },
-  { t: 59.0, type: "item", drop: "score" },
+  { t: 58.4, type: "ambush" },
+  { t: 60.4, type: "item", drop: "score" },
 ];
 const STAGE_2_WAVES = [
   { t: 0.7, type: "sweep", side: 1 },
-  { t: 4.6, type: "corridorFold" },
-  { t: 12.6, type: "cross" },
-  { t: 17.0, type: "pincer" },
+  { t: 3.2, type: "corridorFold" },
+  { t: 6.5, type: "v" },
+  { t: 9.5, type: "cross" },
+  { t: 12.6, type: "pincer" },
+  { t: 16.0, type: "ambush" },
+  { t: 19.2, type: "corridorFold" },
   { t: 22.4, type: "midboss" },
+  { t: 26.5, type: "sweep", side: -1 },
   { t: 29.8, type: "item", drop: "power" },
-  { t: 34.2, type: "rain" },
-  { t: 39.6, type: "exoticB" },
-  { t: 45.2, type: "medium" },
+  { t: 32.0, type: "rain" },
+  { t: 35.0, type: "cross" },
+  { t: 38.0, type: "pincer" },
+  { t: 40.8, type: "exoticB" },
+  { t: 43.4, type: "v" },
+  { t: 46.2, type: "medium" },
   { t: 50.0, type: "midboss2" },
-  { t: 55.0, type: "final" },
+  { t: 53.0, type: "corridorFold" },
+  { t: 55.8, type: "final" },
   { t: 58.4, type: "item", drop: "bomb" },
+  { t: 60.0, type: "ambush" },
 ];
 const STAGE_3_WAVES = [
   { t: 0.9, type: "ambush" },
-  { t: 7.4, type: "crimsonOrbit" },
-  { t: 15.4, type: "v" },
+  { t: 3.8, type: "cross" },
+  { t: 7.0, type: "crimsonOrbit" },
+  { t: 10.6, type: "pincer" },
+  { t: 14.0, type: "v" },
+  { t: 17.0, type: "rain" },
   { t: 20.2, type: "midboss" },
-  { t: 28.8, type: "rain" },
-  { t: 35.4, type: "exoticB" },
-  { t: 42.4, type: "medium" },
+  { t: 24.4, type: "ambush" },
+  { t: 28.0, type: "crimsonOrbit" },
+  { t: 31.4, type: "rain" },
+  { t: 35.0, type: "exoticB" },
+  { t: 38.4, type: "cross" },
+  { t: 41.4, type: "medium" },
+  { t: 44.4, type: "pincer" },
   { t: 47.2, type: "item", drop: "bomb" },
+  { t: 49.2, type: "v" },
   { t: 52.4, type: "midboss2" },
+  { t: 54.8, type: "ambush" },
   { t: 56.8, type: "final" },
   { t: 59.4, type: "item", drop: "score" },
+  { t: 60.5, type: "rain" },
 ];
 const STAGE_4_WAVES = [
-  { t: 3.2, type: "fortressWall" },
+  { t: 2.2, type: "fortressWall" },
+  { t: 6.0, type: "sweep", side: -1 },
+  { t: 9.0, type: "pincer" },
   { t: 12.0, type: "medium" },
+  { t: 15.2, type: "v" },
   { t: 18.8, type: "rain" },
+  { t: 22.0, type: "fortressWall" },
+  { t: 25.0, type: "ambush" },
   { t: 27.2, type: "item", drop: "power" },
+  { t: 30.4, type: "cross" },
   { t: 34.6, type: "midboss" },
-  { t: 42.8, type: "cross" },
-  { t: 49.2, type: "exoticMix" },
+  { t: 38.4, type: "rain" },
+  { t: 42.2, type: "cross" },
+  { t: 45.4, type: "medium" },
+  { t: 48.2, type: "exoticMix" },
+  { t: 51.6, type: "pincer" },
   { t: 55.0, type: "midboss2" },
-  { t: 58.5, type: "final" },
+  { t: 57.2, type: "fortressWall" },
+  { t: 58.8, type: "final" },
   { t: 60.4, type: "item", drop: "score" },
 ];
 const STAGE_5_WAVES = [
   { t: 0.8, type: "finalGlyph" },
-  { t: 7.2, type: "cross" },
+  { t: 4.0, type: "cross" },
+  { t: 7.2, type: "sweep", side: -1 },
+  { t: 10.4, type: "finalGlyph" },
   { t: 13.8, type: "item", drop: "power" },
+  { t: 16.4, type: "rain" },
   { t: 20.2, type: "medium" },
+  { t: 23.6, type: "pincer" },
+  { t: 26.4, type: "v" },
   { t: 29.0, type: "midboss" },
+  { t: 33.0, type: "cross" },
   { t: 37.0, type: "rain" },
+  { t: 40.4, type: "finalGlyph" },
   { t: 43.6, type: "exoticB" },
+  { t: 47.0, type: "sweep", side: -1 },
   { t: 51.4, type: "item", drop: "hyperCharge" },
+  { t: 54.8, type: "medium" },
   { t: 58.6, type: "v" },
+  { t: 62.0, type: "pincer" },
   { t: 65.6, type: "midboss2" },
+  { t: 69.4, type: "rain" },
   { t: 73.6, type: "exoticMix" },
+  { t: 76.8, type: "finalGlyph" },
   { t: 79.8, type: "sweep", side: 1 },
+  { t: 82.4, type: "cross" },
   { t: 84.8, type: "final" },
+  { t: 87.0, type: "pincer" },
   { t: 89.4, type: "item", drop: "score" },
 ];
 
@@ -2649,28 +2702,41 @@ function stageRouteMotion(no, type) {
   const motions = {
     1: {
       triangle: { moveKind: "zigzag", amp: 74, freq: 3.8 },
+      sweep: { moveKind: "swoop", amp: 46, freq: 3.1 },
+      ambush: { moveKind: "retreat", amp: 42, freq: 3.7, turnTime: 1.7, retreatSpeed: 165 },
       rain: { moveKind: "zigzag", amp: 54, freq: 4.5 },
+      v: { moveKind: "zigzag", amp: 48, freq: 3.8 },
+      pincer: { moveKind: "retreat", amp: 34, freq: 3.6, turnTime: 1.45, retreatSpeed: 180 },
       cross: { moveKind: "retreat", amp: 34, freq: 3.2, turnTime: 1.65, retreatSpeed: 170 },
       final: { moveKind: "zigzag", amp: 36, freq: 3.1 },
     },
     2: {
       sweep: { moveKind: "dashBrake", amp: 24, freq: 5.2, brakeTime: 0.95, exitTime: 2.45 },
       corridorFold: { moveKind: "retreat", amp: 46, freq: 4.8, turnTime: 1.35, retreatSpeed: 250 },
+      v: { moveKind: "dashBrake", amp: 38, freq: 4.2, brakeTime: 0.85, exitTime: 2.3 },
+      ambush: { moveKind: "swoop", amp: 62, freq: 4.8 },
+      rain: { moveKind: "zigzag", amp: 58, freq: 5.2 },
       cross: { moveKind: "swoop", amp: 72, freq: 3.6 },
       pincer: { moveKind: "retreat", amp: 28, freq: 5.0, turnTime: 1.25, retreatSpeed: 230 },
       final: { moveKind: "dashBrake", amp: 22, freq: 4.2, brakeTime: 0.8, exitTime: 2.2 },
     },
     3: {
       ambush: { moveKind: "swoop", amp: 82, freq: 2.6 },
+      cross: { moveKind: "swoop", amp: 58, freq: 3.0 },
       crimsonOrbit: { moveKind: "orbit", amp: 58, freq: 2.1 },
+      pincer: { moveKind: "retreat", amp: 48, freq: 3.3, turnTime: 1.55, retreatSpeed: 190 },
       v: { moveKind: "orbit", amp: 42, freq: 1.7 },
       rain: { moveKind: "swoop", amp: 64, freq: 2.4 },
       final: { moveKind: "orbit", amp: 36, freq: 1.5 },
     },
     4: {
       fortressWall: { moveKind: "dashBrake", amp: 18, freq: 2.4, brakeTime: 1.15, exitTime: 3.2 },
+      sweep: { moveKind: "dashBrake", amp: 24, freq: 2.8, brakeTime: 1.05, exitTime: 2.8 },
+      pincer: { moveKind: "retreat", amp: 28, freq: 2.6, turnTime: 1.75, retreatSpeed: 145 },
       medium: { moveKind: "dashBrake", amp: 14, freq: 2.0, brakeTime: 1.25, exitTime: 3.0 },
+      v: { moveKind: "dashBrake", amp: 18, freq: 2.2, brakeTime: 1.2, exitTime: 3.1 },
       rain: { moveKind: "retreat", amp: 22, freq: 2.8, turnTime: 1.8, retreatSpeed: 150 },
+      ambush: { moveKind: "dashBrake", amp: 32, freq: 3.1, brakeTime: 0.9, exitTime: 2.6 },
       cross: { moveKind: "dashBrake", amp: 28, freq: 2.8, brakeTime: 1.05, exitTime: 2.9 },
       final: { moveKind: "dashBrake", amp: 18, freq: 2.2, brakeTime: 0.9, exitTime: 2.4 },
     },
@@ -2681,6 +2747,7 @@ function stageRouteMotion(no, type) {
       rain: { moveKind: "zigzag", amp: 86, freq: 5.8 },
       v: { moveKind: "retreat", amp: 46, freq: 4.6, turnTime: 1.55, retreatSpeed: 260 },
       sweep: { moveKind: "swoop", amp: 88, freq: 4.0 },
+      pincer: { moveKind: "retreat", amp: 62, freq: 4.9, turnTime: 1.35, retreatSpeed: 275 },
       final: { moveKind: "zigzag", amp: 44, freq: 4.4 },
     },
   };
@@ -2716,7 +2783,7 @@ function spawnExtraWave(wave) {
   const no = def.no;
   const slots = wave.type === "exoticA" ? [0] : wave.type === "exoticB" ? [1] : [0, 1];
   for (const slot of slots) {
-    const count = wave.type === "exoticMix" ? (no >= 5 ? 2 : 1) : no >= 4 ? 2 : 1;
+    const count = wave.type === "exoticMix" ? (no >= 5 ? 3 : 2) : no >= 5 ? 3 : no >= 3 ? 2 : 1;
     for (let i = 0; i < count; i++) {
       const spread = count <= 2 ? 170 : 130;
       const x = W / 2 + (i - (count - 1) / 2) * spread + (slot ? 34 : -34);
@@ -2756,7 +2823,7 @@ function spawnStageWave(wave) {
   // ── stage-specific shape waves ────────────────────────────
   if (wave.type === "triangle") {
     // S1: 敵の位置そのものを三角形にし、ゆっくりジグザグで崩す
-    for (let row = 0; row < 4; row++) {
+    for (let row = 0; row < 5; row++) {
       const count = row + 1;
       for (let i = 0; i < count; i++) {
         const x = W / 2 + (i - (count - 1) / 2) * 76;
@@ -2775,8 +2842,8 @@ function spawnStageWave(wave) {
 
   if (wave.type === "corridorFold") {
     // S2: 左右レーンから手前へ突っ込み、折り返して奥へ帰る
-    for (let i = 0; i < 4; i++) {
-      const y = 150 + i * 86;
+    for (let i = 0; i < 6; i++) {
+      const y = 120 + i * 70;
       spawnEnemy(-58 - i * 18, y, 238 * def.enemySpeed, 18 * def.enemySpeed, 1, 46, "small", def.smallSprite, null, {
         moveKind: "retreat",
         moveAmp: 38,
@@ -2805,9 +2872,13 @@ function spawnStageWave(wave) {
       [92, -48],
       [-164, 38],
       [164, 38],
+      [-236, 108],
+      [236, 108],
       [-92, 124],
       [92, 124],
       [0, 196],
+      [-154, 252],
+      [154, 252],
     ];
     for (let i = 0; i < points.length; i++) {
       const [dx, dy] = points[i];
@@ -2824,11 +2895,11 @@ function spawnStageWave(wave) {
 
   if (wave.type === "fortressWall") {
     // S4: 要塞の壁のような矩形配置。手前で減速してから横へ散る
-    for (let row = 0; row < 3; row++) {
-      for (let col = 0; col < 4; col++) {
-        const x = 120 + col * 160;
-        const y = -95 - row * 86;
-        const isAnchor = row === 1 && (col === 1 || col === 2);
+    for (let row = 0; row < 4; row++) {
+      for (let col = 0; col < 5; col++) {
+        const x = 80 + col * 140;
+        const y = -95 - row * 76;
+        const isAnchor = (row === 1 || row === 2) && (col === 1 || col === 3);
         spawnEnemy(x, y, (col - 1.5) * 18 * def.enemySpeed, (90 + row * 12) * def.enemySpeed, col < 2 ? -1 : 1, isAnchor ? 260 : 52, isAnchor ? "medium" : "small", isAnchor ? def.mediumSprite : def.smallSprite, null, {
           moveKind: "dashBrake",
           moveAmp: isAnchor ? 12 : 22,
@@ -2852,11 +2923,16 @@ function spawnStageWave(wave) {
       [84, -200],
       [168, -120],
       [252, -40],
+      [-252, 66],
+      [252, 66],
       [-168, 40],
       [-84, -40],
       [0, -120],
       [84, -40],
       [168, 40],
+      [-84, 132],
+      [0, 72],
+      [84, 132],
     ];
     for (let i = 0; i < glyph.length; i++) {
       const [dx, dy] = glyph[i];
