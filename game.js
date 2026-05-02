@@ -26,10 +26,22 @@ const PLAYER_HITBOX_OFFSET_Y = -6;
 const BOSS_HP_MULTIPLIER = 2;
 const MIDBOSS_HP_MULTIPLIER = 3;
 const BOSS_BULLET_SPEED_MULTIPLIER = 1.22;
+const BOSS_SHIFT_HP_RATIO = 0.66;
+const BOSS_SHIFT_INTERVAL_MULTIPLIER = 0.82;
+const BOSS_SHIFT_BULLET_SPEED_MULTIPLIER = 1.14;
 const BOSS_ENRAGE_HP_RATIO = 0.33;
 const BOSS_ENRAGE_INTERVAL_MULTIPLIER = 0.52;
-const BOSS_ENRAGE_BULLET_SPEED_MULTIPLIER = 1.72;
+const BOSS_ENRAGE_BULLET_SPEED_MULTIPLIER = 1.34;
 const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+const pointSegmentDistance = (p, a, b) => {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const len2 = dx * dx + dy * dy || 1;
+  const t = clamp(((p.x - a.x) * dx + (p.y - a.y) * dy) / len2, 0, 1);
+  const x = a.x + dx * t;
+  const y = a.y + dy * t;
+  return Math.hypot(p.x - x, p.y - y);
+};
 const rand = (min, max) => min + Math.random() * (max - min);
 const dist2 = (a, b) => {
   if (!a || !b || a.x === undefined || b.x === undefined) return Infinity;
@@ -154,6 +166,8 @@ const explosions = [];
 const hitSparks = [];
 const pickups = [];
 const beams = [];
+const bossParts = [];
+const bossPartBeams = [];
 const shockwaves = [];
 const particles = [];
 const damageTexts = [];
@@ -197,6 +211,10 @@ hyperStockImage.onload = () => render();
 const bossExplosionSheet = new Image();
 bossExplosionSheet.src = "assets/boss-death-explosion-sheet.png";
 bossExplosionSheet.onload = () => render();
+
+const bossPartSheet = new Image();
+bossPartSheet.src = "assets/boss-parts.png";
+bossPartSheet.onload = () => render();
 
 const bgm = {
   stage1: new Audio("BGM/BGM_Stage1_最初の警報.mp3"),
@@ -617,6 +635,36 @@ const itemSprites = {
   score: { sx: 1464, sy: 177, sw: 409, sh: 417 },
 };
 
+const BOSS_PART_LOADOUTS = {
+  1: [
+    { relX: -86, relY: 22, sprite: 4, hp: 1450, r: 34, w: 76, h: 76, attack: "turret", interval: 1.12, side: -1 },
+    { relX: 86, relY: 22, sprite: 4, hp: 1450, r: 34, w: 76, h: 76, attack: "turret", interval: 1.12, side: 1 },
+  ],
+  2: [
+    { relX: -92, relY: 18, sprite: 1, hp: 1650, r: 36, w: 82, h: 78, attack: "missile", interval: 1.35, side: -1 },
+    { relX: 92, relY: 18, sprite: 1, hp: 1650, r: 36, w: 82, h: 78, attack: "missile", interval: 1.35, side: 1 },
+    { relX: 0, relY: -46, sprite: 8, hp: 1850, r: 38, w: 82, h: 82, attack: "missile", interval: 1.65, side: 0 },
+  ],
+  3: [
+    { relX: -108, relY: 4, sprite: 2, hp: 1750, r: 36, w: 82, h: 90, attack: "ram", interval: 2.2, side: -1 },
+    { relX: 108, relY: 4, sprite: 2, hp: 1750, r: 36, w: 82, h: 90, attack: "ram", interval: 2.45, side: 1 },
+    { relX: 0, relY: -54, sprite: 5, hp: 1600, r: 34, w: 80, h: 86, attack: "ram", interval: 2.7, side: 0 },
+  ],
+  4: [
+    { relX: -132, relY: 0, sprite: 6, hp: 2150, r: 38, w: 96, h: 70, attack: "beam", interval: 2.35, side: -1 },
+    { relX: 132, relY: 0, sprite: 6, hp: 2150, r: 38, w: 96, h: 70, attack: "beam", interval: 2.35, side: 1 },
+    { relX: 0, relY: -58, sprite: 11, hp: 2350, r: 42, w: 92, h: 92, attack: "beam", interval: 2.75, side: 0 },
+  ],
+  5: [
+    { relX: -170, relY: -18, sprite: 4, hp: 2350, r: 34, w: 78, h: 78, attack: "turret", interval: 0.95, side: -1 },
+    { relX: 170, relY: -18, sprite: 1, hp: 2450, r: 36, w: 84, h: 78, attack: "missile", interval: 1.12, side: 1 },
+    { relX: -96, relY: 54, sprite: 2, hp: 2350, r: 36, w: 80, h: 88, attack: "ram", interval: 2.0, side: -1 },
+    { relX: 96, relY: 54, sprite: 6, hp: 2500, r: 38, w: 96, h: 70, attack: "beam", interval: 2.0, side: 1 },
+    { relX: 0, relY: -68, sprite: 8, hp: 2600, r: 42, w: 90, h: 90, attack: "mine", interval: 1.7, side: 0 },
+    { relX: 0, relY: 46, sprite: 11, hp: 2850, r: 44, w: 94, h: 94, attack: "beam", interval: 2.55, side: 0 },
+  ],
+};
+
 const STAGES = [
   {
     no: 1,
@@ -760,6 +808,7 @@ const boss = {
   maxHp: 9000,
   corePulse: 0,
   visible: false,
+  shifted: false,
   enraged: false,
 };
 
@@ -987,6 +1036,7 @@ function resetGame() {
   boss.hp = boss.maxHp;
   boss.r = currentStage().bossR;
   boss.corePulse = 0;
+  boss.shifted = false;
   boss.enraged = false;
   time = 0;
   shake = 0;
@@ -1011,6 +1061,8 @@ function resetGame() {
   hitSparks.length = 0;
   pickups.length = 0;
   beams.length = 0;
+  bossParts.length = 0;
+  bossPartBeams.length = 0;
   shockwaves.length = 0;
   particles.length = 0;
   damageTexts.length = 0;
@@ -1057,6 +1109,7 @@ function beginStage() {
   boss.maxHp = def.bossHp;
   boss.hp = boss.maxHp;
   boss.r = def.bossR;
+  boss.shifted = false;
   boss.enraged = false;
   bulletClock = 0;
   enemyClock = 0;
@@ -1064,6 +1117,8 @@ function beginStage() {
   enemyBullets.length = 0;
   enemies.length = 0;
   missiles.length = 0;
+  bossParts.length = 0;
+  bossPartBeams.length = 0;
   boss.visible = false;
   playBgm(def.stageBgm);
 }
@@ -1105,7 +1160,9 @@ function beginBossPhase() {
   boss.hp = boss.maxHp;
   boss.r = def.bossR;
   boss.visible = true;
+  boss.shifted = false;
   boss.enraged = false;
+  initBossParts(def);
   playBgm(def.bossBgm);
 }
 
@@ -1118,6 +1175,8 @@ function clearStage() {
   phaseBanner = 0;
   enemyBullets.length = 0;
   enemies.length = 0;
+  bossParts.length = 0;
+  bossPartBeams.length = 0;
   playerBullets.length = 0;
   missiles.length = 0;
   player.invuln = Math.max(player.invuln, 8);
@@ -1133,6 +1192,8 @@ function beginStageClear() {
   enemies.length = 0;
   playerBullets.length = 0;
   missiles.length = 0;
+  bossParts.length = 0;
+  bossPartBeams.length = 0;
   boss.visible = false;
   addScore(250000 + stageNo * 50000);
   player.bombs = Math.min(4, player.bombs + 1);
@@ -1149,6 +1210,7 @@ function advanceStage() {
 function completeStageTransition() {
   stageNo = nextStageNo;
   boss.maxHp = currentStage().bossHp;
+  boss.shifted = false;
   boss.enraged = false;
   player.invuln = 2.2;
   player.chain = 0;
@@ -1169,12 +1231,20 @@ function beginCredits() {
   enemies.length = 0;
   playerBullets.length = 0;
   missiles.length = 0;
+  bossParts.length = 0;
+  bossPartBeams.length = 0;
   playBgm("allclear");
 }
 
 startButton.addEventListener("click", startGame);
 window.addEventListener("keydown", (event) => {
   keys.add(event.code);
+  const modifierOnly = event.code.startsWith("Shift") || event.code.startsWith("Control") || event.code.startsWith("Alt") || event.code.startsWith("Meta");
+  if (!running && !event.repeat && !modifierOnly) {
+    event.preventDefault();
+    startGame();
+    return;
+  }
   if (event.code === "Space") {
     event.preventDefault();
     if (!running) startGame();
@@ -1373,6 +1443,25 @@ function firePlayer() {
   }
 }
 
+function updateBossPhaseShift(def) {
+  if (!boss.visible || boss.maxHp <= 0) return false;
+  if (!boss.shifted && boss.hp <= boss.maxHp * BOSS_SHIFT_HP_RATIO) {
+    boss.shifted = true;
+    bossPhaseClock = 0;
+    bulletClock = def.bossInterval;
+    flash = Math.max(flash, 0.45);
+    shake = Math.max(shake, 18);
+    shockwaves.push({ x: boss.x, y: boss.y, life: 0.72, max: 0.72, radius: 12, color: "#62eaff" });
+    shockwaves.push({ x: boss.x, y: boss.y, life: 1.05, max: 1.05, radius: 38, color: "#ffe66d" });
+    const count = 10 + def.no * 2;
+    for (let i = 0; i < count; i++) {
+      const a = (i / count) * TAU + time * 0.25;
+      spawnBullet(boss.x, boss.y + 20, a, 120 + (i % 2) * 24, i % 2 ? "#62eaff" : "#ffe66d", 6, "ring");
+    }
+  }
+  return boss.shifted;
+}
+
 function updateBossEnrage(def) {
   if (!boss.visible || boss.maxHp <= 0) return false;
   if (!boss.enraged && boss.hp <= boss.maxHp * BOSS_ENRAGE_HP_RATIO) {
@@ -1395,8 +1484,9 @@ function updateBossEnrage(def) {
 
 function updateBoss(dt) {
   const def = currentStage();
+  const shifted = updateBossPhaseShift(def);
   const enraged = updateBossEnrage(def);
-  const moveTime = time * (enraged ? 1.38 : 1);
+  const moveTime = time * (enraged ? 1.32 : shifted ? 1.12 : 1);
 
   // ── ステージ別 BOSS 移動 ──────────────────────────────────
   if (def.no === 1) {
@@ -1418,15 +1508,21 @@ function updateBoss(dt) {
   boss.x = clamp(boss.x, def.bossR + 24, W - def.bossR - 24);
 
   const targetY = (enraged ? 204 : 224) + Math.sin(moveTime * 1.1) * (enraged ? 30 : 15);
-  boss.y += (targetY - boss.y) * Math.min(1, dt * (enraged ? 3.7 : 2.5));
+  boss.y += (targetY - boss.y) * Math.min(1, dt * (enraged ? 3.7 : shifted ? 3 : 2.5));
+  updateBossParts(dt, def);
 
   // ── ステージ別 弾幕パターンセット ───────────────────────
-  const interval = def.bossInterval * (enraged ? BOSS_ENRAGE_INTERVAL_MULTIPLIER : 1);
+  const interval = def.bossInterval * (enraged ? BOSS_ENRAGE_INTERVAL_MULTIPLIER : shifted ? BOSS_SHIFT_INTERVAL_MULTIPLIER : 1);
   if (bulletClock > interval) {
     bulletClock = 0;
 
     if (enraged) {
       bossEnrageAttack(def.no);
+      return;
+    }
+
+    if (shifted) {
+      bossShiftAttack(def.no);
       return;
     }
 
@@ -1474,6 +1570,81 @@ function updateBoss(dt) {
       if (p === 5) s5OmniBlast();
       if (p === 6) s5DarkCurtain();
     }
+  }
+}
+
+function bossShiftAttack(no) {
+  const phaseLen = no >= 5 ? 2.45 : no >= 4 ? 2.65 : no >= 3 ? 2.85 : no >= 2 ? 3.05 : 3.25;
+  const p = Math.floor((bossPhaseClock / phaseLen) % 4);
+
+  if (no === 1) {
+    if (p === 0) shiftOrbitFan(12, 142, 0.16);
+    if (p === 1) shiftAimedSweep(2, 218, 0.12);
+    if (p === 2) shiftLaneRain(5, 136, 0.16);
+    if (p === 3) shiftCrossBurst(10, 166);
+  } else if (no === 2) {
+    if (p === 0) shiftLaneRain(7, 152, 0.2);
+    if (p === 1) shiftCrossBurst(14, 180);
+    if (p === 2) shiftAimedSweep(3, 236, 0.1);
+    if (p === 3) shiftOrbitFan(16, 150, 0.2);
+  } else if (no === 3) {
+    if (p === 0) shiftAimedSweep(4, 242, 0.09);
+    if (p === 1) shiftOrbitFan(18, 158, 0.22);
+    if (p === 2) shiftSideRain(4, 220);
+    if (p === 3) shiftCrossBurst(16, 188);
+  } else if (no === 4) {
+    if (p === 0) shiftCrossBurst(18, 196);
+    if (p === 1) shiftLaneRain(9, 170, 0.24);
+    if (p === 2) shiftAimedSweep(4, 256, 0.082);
+    if (p === 3) shiftSideRain(5, 236);
+  } else {
+    if (p === 0) shiftOrbitFan(22, 170, 0.24);
+    if (p === 1) shiftLaneRain(10, 190, 0.28);
+    if (p === 2) shiftAimedSweep(5, 270, 0.075);
+    if (p === 3) shiftSideRain(6, 252);
+  }
+}
+
+function shiftOrbitFan(count, speed, spread) {
+  const base = time * 4.7;
+  for (let i = 0; i < count; i++) {
+    const a = base + (i / count) * TAU;
+    spawnBullet(boss.x, boss.y + 18, a, speed + (i % 3) * 24, i % 2 ? "#62eaff" : "#ff7a30", 6, "petal");
+    if (i % 3 === 0) spawnBullet(boss.x, boss.y + 18, a + spread, speed * 0.72, "#ad5cff", 7, "orb");
+  }
+}
+
+function shiftAimedSweep(width, speed, step) {
+  const aim = Math.atan2(player.y - boss.y, player.x - boss.x);
+  for (let side = -1; side <= 1; side += 2) {
+    for (let i = -width; i <= width; i++) {
+      spawnBullet(boss.x + side * 72, boss.y + 28, aim + i * step + side * 0.05, speed + Math.abs(i) * 14, side > 0 ? "#ffe66d" : "#8ff6ff", 5, "needle");
+    }
+  }
+}
+
+function shiftLaneRain(lanes, speed, wobble) {
+  for (let i = 0; i < lanes; i++) {
+    const x = 58 + i * ((W - 116) / Math.max(1, lanes - 1));
+    const sway = Math.sin(time * 2.4 + i * 0.75) * wobble;
+    spawnBullet(x, boss.y + 36, Math.PI / 2 + sway, speed + (i % 2) * 28, i % 2 ? "#ff4fcf" : "#62eaff", 6, "ring");
+  }
+}
+
+function shiftCrossBurst(count, speed) {
+  const base = bossPhaseClock * 0.95;
+  for (let i = 0; i < count; i++) {
+    const a = (i / count) * TAU + base;
+    spawnBullet(boss.x, boss.y + 12, a, speed + (i % 4) * 18, i % 2 ? "#ff355e" : "#ffe66d", 5, i % 3 ? "needle" : "star");
+  }
+}
+
+function shiftSideRain(rows, speed) {
+  for (let i = 0; i < rows; i++) {
+    const y = 160 + i * ((H * 0.52) / Math.max(1, rows - 1));
+    const sway = Math.sin(time * 2.2 + i) * 0.16;
+    spawnBullet(-24, y, 0.12 + sway, speed + i * 16, "#ff8642", 5, "wave");
+    spawnBullet(W + 24, y + 22, Math.PI - 0.12 - sway, speed + i * 16, "#ad5cff", 5, "wave");
   }
 }
 
@@ -1590,6 +1761,206 @@ function enrageSlowFastTrap(count) {
       spawnBullet(boss.x, boss.y, a + Math.sin(time + i) * 0.08, 292 + (i % 2) * 48, "#ff355e", 5, "needle");
     }
   }
+}
+
+function initBossParts(def) {
+  bossParts.length = 0;
+  bossPartBeams.length = 0;
+  const loadout = BOSS_PART_LOADOUTS[def.no] || [];
+  loadout.forEach((part, index) => {
+    const phaseOffset = rand(0, TAU);
+    const home = {
+      x: boss.x + part.relX,
+      y: boss.y + part.relY,
+    };
+    bossParts.push({
+      ...part,
+      x: home.x,
+      y: home.y,
+      hp: Math.round(part.hp * (1 + def.no * 0.04)),
+      maxHp: Math.round(part.hp * (1 + def.no * 0.04)),
+      fireClock: rand(0, part.interval * 0.55),
+      state: "attached",
+      t: 0,
+      phaseOffset,
+      hitFlash: 0,
+      index,
+    });
+  });
+}
+
+function bossPartHome(part) {
+  const bob = Math.sin(time * 2.1 + part.phaseOffset) * 5;
+  const sway = Math.cos(time * 1.7 + part.phaseOffset) * 3;
+  return {
+    x: boss.x + part.relX + sway,
+    y: boss.y + part.relY + bob,
+  };
+}
+
+function updateBossParts(dt, def) {
+  updateBossPartBeams(dt);
+  for (const part of bossParts) {
+    if (!part || part.dead) continue;
+    part.t += dt;
+    part.hitFlash = Math.max(0, part.hitFlash - dt * 8);
+
+    if (part.state === "charging") {
+      part.x += part.vx * dt;
+      part.y += part.vy * dt;
+      part.chargeTime -= dt;
+      if (part.trailClock === undefined) part.trailClock = 0;
+      part.trailClock -= dt;
+      if (part.trailClock <= 0) {
+        part.trailClock = 0.08;
+        spawnBullet(part.x, part.y, rand(0, TAU), rand(68, 110), "#ff4fcf", 5, "orb");
+      }
+      const hitbox = playerHitbox();
+      if (player.invuln <= 0 && dist2(part, hitbox) < (part.r + hitbox.r + 2) ** 2) {
+        hitPlayer();
+        part.state = "returning";
+      }
+      if (part.chargeTime <= 0 || part.x < -90 || part.x > W + 90 || part.y < -90 || part.y > H + 90) {
+        part.state = "returning";
+      }
+      continue;
+    }
+
+    const home = bossPartHome(part);
+    if (part.state === "returning") {
+      part.x += (home.x - part.x) * Math.min(1, dt * 4.8);
+      part.y += (home.y - part.y) * Math.min(1, dt * 4.8);
+      if (Math.hypot(part.x - home.x, part.y - home.y) < 8) part.state = "attached";
+      continue;
+    }
+
+    part.x = home.x;
+    part.y = home.y;
+    const phaseBoost = boss.enraged ? 0.7 : boss.shifted ? 0.86 : 1;
+    part.fireClock += dt;
+    if (part.fireClock > part.interval * phaseBoost) {
+      part.fireClock = 0;
+      bossPartAttack(part, def);
+    }
+  }
+}
+
+function updateBossPartBeams(dt) {
+  for (const beam of bossPartBeams) {
+    beam.age += dt;
+    beam.life -= dt;
+    const active = beam.age >= beam.warm;
+    if (!active) continue;
+    const hitbox = playerHitbox();
+    const a = { x: beam.x, y: beam.y };
+    const b = { x: beam.x + Math.cos(beam.angle) * beam.length, y: beam.y + Math.sin(beam.angle) * beam.length };
+    if (player.invuln <= 0 && pointSegmentDistance(hitbox, a, b) < hitbox.r + beam.width * 0.42) {
+      hitPlayer();
+      beam.life = Math.min(beam.life, 0.12);
+    }
+  }
+  removeWhere(bossPartBeams, (beam) => beam.life <= 0);
+}
+
+function bossPartAttack(part, def) {
+  const aim = Math.atan2(player.y - part.y, player.x - part.x);
+  const rank = boss.enraged ? 1.12 : boss.shifted ? 1.04 : 1;
+  if (part.attack === "turret") {
+    const spread = def.no >= 5 ? 0.11 : 0.14;
+    const width = def.no >= 5 ? 3 : 2;
+    for (let i = -width; i <= width; i++) {
+      spawnBullet(part.x, part.y, aim + i * spread + part.side * 0.04, 185 * rank + Math.abs(i) * 16, part.side >= 0 ? "#62eaff" : "#ff7a30", 5, "needle");
+    }
+    spawnBullet(part.x, part.y, time * 3.2 + part.side, 118 * rank, "#ffe66d", 7, "ring");
+    return;
+  }
+
+  if (part.attack === "missile") {
+    for (let i = -1; i <= 1; i++) {
+      const a = aim + i * 0.18 + Math.sin(time + i) * 0.035;
+      spawnBullet(part.x + i * 8, part.y, a, (210 + Math.abs(i) * 34) * rank, "#ff9f45", 6, "wave");
+    }
+    for (let i = 0; i < 4; i++) {
+      spawnBullet(part.x, part.y, Math.PI / 2 + (i - 1.5) * 0.16, (132 + i * 18) * rank, "#ff355e", 5, "star");
+    }
+    return;
+  }
+
+  if (part.attack === "ram") {
+    part.state = "charging";
+    part.chargeTime = boss.enraged ? 0.86 : 1.05;
+    const speed = (boss.enraged ? 470 : boss.shifted ? 430 : 390) * (0.95 + def.no * 0.03);
+    part.vx = Math.cos(aim) * speed;
+    part.vy = Math.sin(aim) * speed;
+    part.trailClock = 0;
+    shockwaves.push({ x: part.x, y: part.y, life: 0.42, max: 0.42, radius: 10, color: "#ff4fcf" });
+    return;
+  }
+
+  if (part.attack === "beam") {
+    bossPartBeams.push({
+      x: part.x,
+      y: part.y,
+      angle: aim + part.side * 0.03,
+      length: 1500,
+      width: boss.enraged ? 24 : boss.shifted ? 21 : 18,
+      warm: 0.32,
+      age: 0,
+      life: boss.enraged ? 0.82 : 0.92,
+      max: boss.enraged ? 0.82 : 0.92,
+      color: part.side === 0 ? "#ffe66d" : part.side > 0 ? "#62eaff" : "#ff4fcf",
+    });
+    return;
+  }
+
+  if (part.attack === "mine") {
+    const count = def.no >= 5 ? 9 : 6;
+    const offset = time * 0.7;
+    for (let i = 0; i < count; i++) {
+      const a = offset + (i / count) * TAU;
+      spawnBullet(part.x, part.y, a, (72 + (i % 3) * 22) * rank, i % 2 ? "#ad5cff" : "#ffe66d", 8, "orb");
+      if (boss.shifted || boss.enraged) spawnBullet(part.x, part.y, a + Math.PI / count, 180 * rank, "#ff355e", 5, "needle");
+    }
+  }
+}
+
+function damageBossPart(part, amount) {
+  if (!part || part.dead) return;
+  part.hp = Math.max(0, part.hp - amount);
+  part.hitFlash = 1;
+  addScore(amount * 18);
+  addComboHits(1);
+  addHyperGauge(0.72);
+  if (Math.random() < 0.32) spawnHitSpark(part.x + rand(-part.r, part.r), part.y + rand(-part.r, part.r), "#ffdf65", 0.9);
+  if (part.hp <= 0) killBossPart(part);
+}
+
+function killBossPart(part) {
+  if (part.dead) return;
+  part.dead = true;
+  addScore(45000 + currentStage().no * 6500);
+  addComboHits(18);
+  massiveExplosion(part.x, part.y, 1.05);
+  playSfx("explode", 0.38);
+  scatterPickups(part.x, part.y, "hyperCharge", currentStage().no >= 5 ? 2 : 1, { speedMultiplier: 0.85, magnetDelay: 0.35 });
+  shockwaves.push({ x: part.x, y: part.y, life: 0.78, max: 0.78, radius: 16, color: "#b46cff" });
+}
+
+function hitBossPartByCircle(projectile, damage, sparkColor = "#8df8ff", sparkScale = 0.85) {
+  let best = null;
+  let bestD = Infinity;
+  for (const part of bossParts) {
+    if (!part || part.dead || part.hp <= 0) continue;
+    const d = dist2(projectile, part);
+    if (d < (part.r + projectile.r) ** 2 && d < bestD) {
+      best = part;
+      bestD = d;
+    }
+  }
+  if (!best) return false;
+  spawnHitSpark(projectile.x, projectile.y, sparkColor, sparkScale);
+  damageBossPart(best, damage);
+  return true;
 }
 
 function updateBossDeath(dt) {
@@ -1927,7 +2298,7 @@ function spawnBullet(x, y, angle, speed, color, r, kind) {
   if (enemyBullets.length >= enemyBulletLimit()) return;
   const def = currentStage();
   const rank = hyperRankMultiplier();
-  const bossSpeed = phase === "boss" ? (boss.enraged ? BOSS_ENRAGE_BULLET_SPEED_MULTIPLIER : BOSS_BULLET_SPEED_MULTIPLIER) : 1;
+  const bossSpeed = phase === "boss" ? (boss.enraged ? BOSS_ENRAGE_BULLET_SPEED_MULTIPLIER : boss.shifted ? BOSS_SHIFT_BULLET_SPEED_MULTIPLIER : BOSS_BULLET_SPEED_MULTIPLIER) : 1;
   enemyBullets.push({
     x,
     y,
@@ -2476,6 +2847,16 @@ function findMissileTarget(m) {
       best = e;
     }
   }
+  if (phase === "boss") {
+    for (const part of bossParts) {
+      if (!part || part.dead || part.hp <= 0) continue;
+      const d = dist2(m, part);
+      if (d < bestD) {
+        bestD = d;
+        best = part;
+      }
+    }
+  }
   if (phase === "boss" && boss.visible && boss.hp > 0) {
     const d = dist2(m, boss);
     if (d < bestD) best = boss;
@@ -2594,6 +2975,8 @@ function cull() {
   removeWhere(explosions, (e) => e.life <= 0);
   removeWhere(hitSparks, (s) => s.life <= 0);
   removeWhere(beams, (b) => b.life <= 0);
+  removeWhere(bossPartBeams, (b) => b.life <= 0);
+  removeWhere(bossParts, (p) => p.dead);
   removeWhere(shockwaves, (s) => s.life <= 0);
   removeWhere(particles, (p) => p.life <= 0);
   removeWhere(damageTexts, (d) => d.life <= 0);
@@ -2615,6 +2998,15 @@ function trimList(list, max) {
 
 function collide() {
   for (const beam of beams) {
+    if (phase === "boss") {
+      for (const part of bossParts) {
+        if (!part || part.dead || part.hp <= 0) continue;
+        if (Math.abs(beam.x - part.x) < part.r + beam.w * 0.5 && part.y < beam.y + 20) {
+          damageBossPart(part, beam.damage * 0.9);
+          if (Math.random() < 0.18) spawnHitSpark(beam.x + rand(-14, 14), part.y, "#bffcff", 0.62);
+        }
+      }
+    }
     if (phase === "boss" && boss.visible && Math.abs(beam.x - boss.x) < boss.r * 0.9 && boss.y < beam.y) {
       damageBoss(beam.damage);
       addComboHits(1);
@@ -2636,6 +3028,11 @@ function collide() {
   for (let i = playerBullets.length - 1; i >= 0; i--) {
     const b = playerBullets[i];
     if (!b) continue;
+    if (phase === "boss" && hitBossPartByCircle(b, b.damage, "#8df8ff", 0.85)) {
+      playerBullets.splice(i, 1);
+      playSfx("hit", 0.16);
+      continue;
+    }
     if (phase === "boss" && boss.visible && dist2(b, boss) < (boss.r + b.r) ** 2) {
       playerBullets.splice(i, 1);
       spawnHitSpark(b.x, b.y, "#8df8ff", 0.85);
@@ -2663,6 +3060,11 @@ function collide() {
     const m = missiles[i];
     if (!m) continue;
     let consumed = false;
+    if (phase === "boss" && hitBossPartByCircle(m, m.damage, "#ffad45", 1.15)) {
+      missiles.splice(i, 1);
+      playSfx("missilehit", 0.17);
+      continue;
+    }
     if (phase === "boss" && boss.visible && dist2(m, boss) < (boss.r + m.r) ** 2) {
       missiles.splice(i, 1);
       spawnHitSpark(m.x, m.y, "#ffad45", 1.25);
@@ -2925,6 +3327,7 @@ function useBomb() {
   if (phase === "boss") {
     boss.hp = Math.max(0, boss.hp - 560);
     massiveExplosion(boss.x, boss.y, 1.8);
+    for (const part of bossParts) damageBossPart(part, 420);
     if (boss.hp <= 0) clearStage();
   }
   for (const e of enemies) {
@@ -2980,10 +3383,12 @@ function render() {
   drawBackground();
   if (currentStage().no === 1) drawStructures();
   if ((phase === "boss" || phase === "bossDeath") && boss.visible) drawBoss();
+  if (phase === "boss") drawBossParts();
   drawEnemies();
   drawPickups();
   drawPlayerBullets();
   drawBeams();
+  drawBossPartBeams();
   drawEnemyBullets();
   drawPlayer();
   drawEffects();
@@ -3291,6 +3696,85 @@ function drawHyperAura() {
   ctx.beginPath();
   ctx.ellipse(0, 0, 58 + pulse * 6, 24 + pulse * 4, -time * 1.5, 0, TAU);
   ctx.stroke();
+  ctx.restore();
+}
+
+function drawBossParts() {
+  if (!bossPartSheet.complete || !bossPartSheet.naturalWidth) {
+    drawBossPartFallbacks();
+    return;
+  }
+  const cols = 4;
+  const rows = 3;
+  const cellW = bossPartSheet.naturalWidth / cols;
+  const cellH = bossPartSheet.naturalHeight / rows;
+  for (const part of bossParts) {
+    if (!part || part.dead || part.hp <= 0) continue;
+    const col = part.sprite % cols;
+    const row = Math.floor(part.sprite / cols);
+    ctx.save();
+    ctx.translate(part.x, part.y);
+    const a = part.state === "charging" ? Math.atan2(part.vy, part.vx) + Math.PI / 2 : Math.sin(time * 1.8 + part.phaseOffset) * 0.06;
+    ctx.rotate(a);
+    ctx.shadowColor = part.hitFlash > 0 ? "#fff2a8" : part.attack === "beam" ? "#62eaff" : part.attack === "ram" ? "#ff4fcf" : "#ffe66d";
+    ctx.shadowBlur = isLiteRender() ? 7 : 22;
+    if (part.hitFlash > 0) ctx.globalAlpha = 0.68 + Math.sin(time * 80) * 0.18;
+    ctx.drawImage(bossPartSheet, col * cellW, row * cellH, cellW, cellH, -part.w / 2, -part.h / 2, part.w, part.h);
+    ctx.restore();
+
+    ctx.save();
+    const barW = part.w * 0.72;
+    drawBar(part.x - barW / 2, part.y + part.h * 0.48, barW, 5, part.hp / part.maxHp, "#ff713d", "#b46cff");
+    ctx.restore();
+  }
+}
+
+function drawBossPartFallbacks() {
+  for (const part of bossParts) {
+    if (!part || part.dead || part.hp <= 0) continue;
+    ctx.save();
+    ctx.translate(part.x, part.y);
+    ctx.shadowColor = "#62eaff";
+    ctx.shadowBlur = isLiteRender() ? 6 : 18;
+    ctx.fillStyle = part.hitFlash > 0 ? "#fff2a8" : "#2b3846";
+    ctx.strokeStyle = "#8df8ff";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.roundRect(-part.w / 2, -part.h / 2, part.w, part.h, 8);
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
+function drawBossPartBeams() {
+  if (!bossPartBeams.length) return;
+  ctx.save();
+  if (!isVeryLiteRender()) ctx.globalCompositeOperation = "screen";
+  for (const beam of bossPartBeams) {
+    const warmRatio = clamp(beam.age / beam.warm, 0, 1);
+    const active = beam.age >= beam.warm;
+    const x2 = beam.x + Math.cos(beam.angle) * beam.length;
+    const y2 = beam.y + Math.sin(beam.angle) * beam.length;
+    ctx.globalAlpha = active ? clamp(beam.life / Math.max(0.001, beam.max - beam.warm), 0.25, 0.95) : 0.25 + warmRatio * 0.34;
+    ctx.strokeStyle = active ? beam.color : "rgba(255, 238, 120, 0.72)";
+    ctx.shadowColor = active ? beam.color : "#ffe66d";
+    ctx.shadowBlur = isLiteRender() ? 8 : active ? 30 : 16;
+    ctx.lineWidth = active ? beam.width : 3 + warmRatio * 5;
+    ctx.beginPath();
+    ctx.moveTo(beam.x, beam.y);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+    if (active && !isLiteRender()) {
+      ctx.globalAlpha *= 0.55;
+      ctx.strokeStyle = "#fff";
+      ctx.lineWidth = Math.max(3, beam.width * 0.28);
+      ctx.beginPath();
+      ctx.moveTo(beam.x, beam.y);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+    }
+  }
   ctx.restore();
 }
 
@@ -3916,6 +4400,7 @@ if (new URLSearchParams(location.search).has("demo")) {
     boss.maxHp = currentStage().bossHp;
     boss.hp = boss.maxHp;
     boss.r = currentStage().bossR;
+    boss.shifted = false;
     boss.enraged = false;
   }
   running = true;
