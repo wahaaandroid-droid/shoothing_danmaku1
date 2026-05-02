@@ -21,8 +21,8 @@ const HYPER_STOCK_MAX = 5;
 const HYPER_ITEM_DROP_Y = 130;
 const HYPER_DURATION = 12;
 const COMBO_HOLD_SECONDS = 3;
-const PLAYER_HITBOX_OFFSET_X = 0;
-const PLAYER_HITBOX_OFFSET_Y = 5;
+const PLAYER_HITBOX_OFFSET_X = 5;
+const PLAYER_HITBOX_OFFSET_Y = -6;
 const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
 const rand = (min, max) => min + Math.random() * (max - min);
 const dist2 = (a, b) => {
