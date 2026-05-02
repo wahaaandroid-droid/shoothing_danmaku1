@@ -76,7 +76,6 @@ let phaseTimer = 0;
 let phaseBanner = 0;
 let stageNo = 1;
 let stageWaveIndex = 0;
-let stageCombatWaveStep = 0;
 let stageScroll = 0;
 let lifePickupsThisStage = 0;
 let bossDeathClock = 0;
@@ -93,78 +92,86 @@ let lastExplosionAt = 0;
 let bossDeathBoomStep = 0;
 
 const STAGE_DURATION = 62;
-const STAGE_WAVES = [
+const STAGE_1_WAVES = [
   { t: 0.8, type: "sweep", side: -1 },
-  { t: 3.8, type: "sweep", side: 1 },
-  { t: 5.7, type: "cross" },
-  { t: 6.4, type: "exoticA" },
-  { t: 7.2, type: "v" },
-  { t: 9.6, type: "rain" },
-  { t: 11.5, type: "ambush" },
-  { t: 13.4, type: "medium" },
-  { t: 15.5, type: "sweep", side: -1 },
-  { t: 17.1, type: "pincer" },
-  { t: 19.0, type: "v" },
-  { t: 20.8, type: "exoticB" },
-  { t: 22.0, type: "item", drop: "power" },
-  { t: 23.0, type: "ambush" },
-  { t: 25.0, type: "medium" },
-  { t: 27.0, type: "sweep", side: 1 },
-  { t: 28.2, type: "exoticMix" },
-  { t: 29.2, type: "cross" },
-  { t: 31.0, type: "v" },
-  { t: 33.0, type: "rain" },
-  { t: 34.5, type: "item", drop: "bomb" },
-  { t: 38.0, type: "midboss" },
-  { t: 43.5, type: "midboss2" },
-  { t: 45.0, type: "exoticMix" },
-  { t: 46.2, type: "pincer" },
-  { t: 48.0, type: "item", drop: "life" },
-  { t: 50.0, type: "ambush" },
-  { t: 52.0, type: "cross" },
-  { t: 53.0, type: "exoticMix" },
-  { t: 54.0, type: "item", drop: "score" },
-  { t: 55.1, type: "rain" },
-  { t: 56.5, type: "final" },
+  { t: 5.8, type: "exoticA" },
+  { t: 10.4, type: "rain" },
+  { t: 15.2, type: "medium" },
+  { t: 19.8, type: "exoticB" },
+  { t: 24.6, type: "midboss" },
+  { t: 29.6, type: "item", drop: "power" },
+  { t: 32.4, type: "cross" },
+  { t: 37.0, type: "v" },
+  { t: 41.5, type: "exoticMix" },
+  { t: 46.0, type: "item", drop: "bomb" },
+  { t: 49.8, type: "midboss2" },
+  { t: 54.6, type: "final" },
+  { t: 58.0, type: "item", drop: "score" },
+];
+const STAGE_2_WAVES = [
+  { t: 0.7, type: "sweep", side: 1 },
+  { t: 4.8, type: "cross" },
+  { t: 8.9, type: "pincer" },
+  { t: 12.8, type: "exoticB" },
+  { t: 16.9, type: "v" },
+  { t: 20.2, type: "item", drop: "power" },
+  { t: 22.8, type: "midboss" },
+  { t: 29.6, type: "rain" },
+  { t: 35.0, type: "sweep", side: -1 },
+  { t: 40.2, type: "exoticA" },
+  { t: 44.8, type: "medium" },
+  { t: 48.6, type: "midboss2" },
+  { t: 53.2, type: "final" },
+  { t: 57.2, type: "item", drop: "bomb" },
+];
+const STAGE_3_WAVES = [
+  { t: 0.9, type: "ambush" },
+  { t: 5.2, type: "exoticA" },
+  { t: 9.8, type: "v" },
+  { t: 14.2, type: "cross" },
+  { t: 18.4, type: "midboss" },
+  { t: 24.4, type: "rain" },
+  { t: 30.0, type: "exoticB" },
+  { t: 35.0, type: "medium" },
+  { t: 39.8, type: "item", drop: "bomb" },
+  { t: 44.4, type: "ambush" },
+  { t: 50.8, type: "midboss2" },
+  { t: 55.0, type: "final" },
+  { t: 58.5, type: "item", drop: "score" },
+];
+const STAGE_4_WAVES = [
+  { t: 1.2, type: "medium" },
+  { t: 6.4, type: "sweep", side: -1 },
+  { t: 11.4, type: "exoticB" },
+  { t: 16.4, type: "rain" },
+  { t: 21.6, type: "v" },
+  { t: 26.2, type: "item", drop: "power" },
+  { t: 31.8, type: "cross" },
+  { t: 36.8, type: "midboss" },
+  { t: 42.4, type: "exoticMix" },
+  { t: 47.6, type: "medium" },
+  { t: 53.2, type: "midboss2" },
+  { t: 56.8, type: "final" },
+  { t: 59.2, type: "item", drop: "score" },
 ];
 const STAGE_5_WAVES = [
   { t: 0.8, type: "sweep", side: -1 },
-  { t: 3.8, type: "sweep", side: 1 },
-  { t: 5.8, type: "cross" },
-  { t: 6.3, type: "exoticA" },
-  { t: 7.0, type: "v" },
-  { t: 9.0, type: "rain" },
-  { t: 10.8, type: "ambush" },
-  { t: 13.2, type: "medium" },
-  { t: 15.4, type: "pincer" },
-  { t: 17.2, type: "sweep", side: -1 },
-  { t: 20.6, type: "v" },
-  { t: 21.6, type: "exoticB" },
-  { t: 22.4, type: "cross" },
-  { t: 24.0, type: "item", drop: "power" },
-  { t: 26.5, type: "ambush" },
-  { t: 28.0, type: "rain" },
-  { t: 30.0, type: "medium" },
-  { t: 34.5, type: "midboss" },
-  { t: 38.8, type: "pincer" },
-  { t: 40.2, type: "exoticMix" },
-  { t: 42.0, type: "sweep", side: 1 },
-  { t: 44.0, type: "cross" },
-  { t: 47.0, type: "item", drop: "hyperCharge" },
-  { t: 50.5, type: "v" },
-  { t: 52.5, type: "rain" },
-  { t: 55.5, type: "midboss2" },
-  { t: 58.4, type: "exoticMix" },
-  { t: 59.8, type: "pincer" },
-  { t: 64.0, type: "ambush" },
-  { t: 67.2, type: "cross" },
-  { t: 68.8, type: "exoticA" },
-  { t: 70.0, type: "medium" },
-  { t: 73.0, type: "rain" },
-  { t: 76.0, type: "item", drop: "bomb" },
-  { t: 79.0, type: "pincer" },
-  { t: 80.2, type: "exoticB" },
-  { t: 82.0, type: "final" },
+  { t: 6.0, type: "cross" },
+  { t: 11.0, type: "exoticA" },
+  { t: 16.2, type: "v" },
+  { t: 21.2, type: "medium" },
+  { t: 25.4, type: "item", drop: "power" },
+  { t: 29.0, type: "midboss" },
+  { t: 35.2, type: "rain" },
+  { t: 41.0, type: "exoticB" },
+  { t: 46.0, type: "cross" },
+  { t: 51.4, type: "item", drop: "hyperCharge" },
+  { t: 56.2, type: "medium" },
+  { t: 61.4, type: "midboss2" },
+  { t: 67.2, type: "exoticMix" },
+  { t: 72.6, type: "sweep", side: 1 },
+  { t: 78.0, type: "rain" },
+  { t: 83.0, type: "final" },
   { t: 88.0, type: "item", drop: "score" },
 ];
 
@@ -736,6 +743,7 @@ const STAGES = [
     fireRate: 1.18,
     bossInterval: 0.24,
     bulletSpeed: 1.26,
+    waves: STAGE_1_WAVES,
   },
   {
     no: 2,
@@ -757,6 +765,7 @@ const STAGES = [
     fireRate: 1.16,
     bossInterval: 0.245,
     bulletSpeed: 1.39,
+    waves: STAGE_2_WAVES,
   },
   {
     no: 3,
@@ -778,6 +787,7 @@ const STAGES = [
     fireRate: 1.14,
     bossInterval: 0.255,
     bulletSpeed: 1.52,
+    waves: STAGE_3_WAVES,
   },
   {
     no: 4,
@@ -799,6 +809,7 @@ const STAGES = [
     fireRate: 1.12,
     bossInterval: 0.265,
     bulletSpeed: 1.66,
+    waves: STAGE_4_WAVES,
   },
   {
     no: 5,
@@ -871,7 +882,7 @@ function stageDuration() {
 }
 
 function stageWaves() {
-  return currentStage().waves || STAGE_WAVES;
+  return currentStage().waves || STAGE_1_WAVES;
 }
 
 function hyperAttackMultiplier() {
@@ -1152,7 +1163,6 @@ function beginStage() {
   phaseTimer = 0;
   phaseBanner = 2.2;
   stageWaveIndex = 0;
-  stageCombatWaveStep = 0;
   lifePickupsThisStage = 0;
   stageScroll = 0;
   boss.x = W / 2;
@@ -2628,144 +2638,21 @@ function updateSpawns(dt) {
     updateStageSpawns();
   } else if (phase === "boss" && enemyClock > 8.0) {
     enemyClock = 0;
-    const side = Math.random() > 0.5 ? -1 : 1;
-    spawnEnemy(side < 0 ? -46 : W + 46, rand(360, 600), side * -rand(100, 150) * def.enemySpeed, rand(-12, 28), side, 55, "small");
+    const step = Math.floor(bossPhaseClock / 8);
+    const side = step % 2 === 0 ? 1 : -1;
+    const y = 360 + (step % 4) * 58;
+    const vx = side * -(108 + (step % 3) * 18) * def.enemySpeed;
+    const vy = [-10, 6, 18, 28][step % 4];
+    spawnEnemy(side < 0 ? -46 : W + 46, y, vx, vy, side, 55, "small");
   }
 }
 
 function updateStageSpawns() {
-  const def = currentStage();
-  const no = def.no;
   const waves = stageWaves();
   while (stageWaveIndex < waves.length && phaseTimer >= waves[stageWaveIndex].t) {
-    const wave = waves[stageWaveIndex];
-    if (shouldSpawnStageWave(wave)) spawnStageWave(wave);
+    spawnStageWave(waves[stageWaveIndex]);
     stageWaveIndex++;
   }
-
-  // ランダム湧きは控えめにして、固定ウェーブの間に余白を作る
-  const spawnInterval = no === 1 ? 2.45 : no === 2 ? 2.08 : no === 3 ? 2.16 : no === 4 ? 2.24 : 1.92;
-
-  if (enemyClock > spawnInterval) {
-    enemyClock = 0;
-
-    if (no === 1) {
-      const r = Math.random();
-      if (r < 0.12) {
-        spawnExtraEnemy(0, rand(95, W - 95), -56, rand(-28, 28) * def.enemySpeed, 120 * def.enemySpeed);
-      } else if (r < 0.24) {
-        const side = Math.random() > 0.5 ? -1 : 1;
-        spawnExtraEnemy(1, side < 0 ? -58 : W + 58, rand(220, 660), side * -120 * def.enemySpeed, rand(-10, 28));
-      } else if (r < 0.30) {
-        const side = Math.random() > 0.5 ? -1 : 1;
-        spawnExtraEnemy(0, rand(105, W - 105), -64, rand(-20, 20) * def.enemySpeed, 112 * def.enemySpeed);
-        spawnExtraEnemy(1, side < 0 ? -62 : W + 62, rand(250, 620), side * -108 * def.enemySpeed, rand(-8, 22));
-      } else if (r < 0.52) {
-        spawnEnemy(rand(90, W - 90), -42, rand(-34, 34) * def.enemySpeed, rand(135, 180) * def.enemySpeed, 1, 42, "small");
-      } else if (r < 0.76) {
-        spawnEnemy(-42, rand(250, 720), rand(118, 170) * def.enemySpeed, rand(-8, 34), 1, 42, "small");
-        spawnEnemy(W + 42, rand(250, 720), -rand(118, 170) * def.enemySpeed, rand(-8, 34), -1, 42, "small");
-      } else {
-        const side = Math.random() > 0.5 ? -1 : 1;
-        spawnEnemy(side < 0 ? -42 : W + 42, rand(190, 760), side * -rand(140, 205) * def.enemySpeed, rand(-10, 42), side, 42, "small");
-      }
-
-    } else if (no === 2) {
-      const r = Math.random();
-      if (r < 0.12) {
-        const side = Math.random() > 0.5 ? -1 : 1;
-        spawnExtraEnemy(0, side < 0 ? -70 : W + 70, rand(170, 600), side * -250 * def.enemySpeed, rand(18, 58));
-      } else if (r < 0.24) {
-        spawnExtraEnemy(1, rand(100, W - 100), -64, rand(-18, 18) * def.enemySpeed, 126 * def.enemySpeed);
-      } else if (r < 0.31) {
-        const side = Math.random() > 0.5 ? -1 : 1;
-        spawnExtraEnemy(0, side < 0 ? -72 : W + 72, rand(180, 560), side * -228 * def.enemySpeed, rand(14, 48));
-        spawnExtraEnemy(1, rand(110, W - 110), -70, rand(-14, 14) * def.enemySpeed, 118 * def.enemySpeed);
-      } else if (r < 0.52) {
-        const side = Math.random() > 0.5 ? -1 : 1;
-        spawnEnemy(side < 0 ? -42 : W + 42, rand(150, 720), side * -rand(190, 270) * def.enemySpeed, rand(-12, 34), side, 42, "small");
-        spawnEnemy(side < 0 ? -58 : W + 58, rand(150, 720), side * -rand(160, 230) * def.enemySpeed, rand(20, 58), side, 42, "small");
-      } else if (r < 0.76) {
-        spawnEnemy(rand(90, W - 90), -42, rand(-70, 70) * def.enemySpeed, rand(190, 250) * def.enemySpeed, 1, 42, "small");
-      } else {
-        spawnEnemy(-42, rand(180, 670), rand(210, 280) * def.enemySpeed, rand(-14, 24), 1, 42, "small");
-        spawnEnemy(W + 42, rand(180, 670), -rand(210, 280) * def.enemySpeed, rand(-14, 24), -1, 42, "small");
-      }
-
-    } else if (no === 3) {
-      const r = Math.random();
-      if (r < 0.12) {
-        const side = Math.random() > 0.5 ? -1 : 1;
-        spawnExtraEnemy(0, side < 0 ? -62 : W + 62, rand(190, 620), side * -142 * def.enemySpeed, rand(-16, 32));
-      } else if (r < 0.24) {
-        spawnExtraEnemy(1, rand(80, W - 80), -70, rand(-48, 48) * def.enemySpeed, 146 * def.enemySpeed);
-      } else if (r < 0.31) {
-        const side = Math.random() > 0.5 ? -1 : 1;
-        spawnExtraEnemy(0, side < 0 ? -66 : W + 66, rand(210, 610), side * -132 * def.enemySpeed, rand(-12, 26));
-        spawnExtraEnemy(1, rand(90, W - 90), -76, rand(-40, 40) * def.enemySpeed, 136 * def.enemySpeed);
-      } else if (r < 0.52) {
-        spawnEnemy(rand(80, W - 80), -42, rand(-34, 34) * def.enemySpeed, rand(170, 235) * def.enemySpeed, 1, 46, "small");
-        spawnEnemy(rand(80, W - 80), -72, rand(-34, 34) * def.enemySpeed, rand(150, 205) * def.enemySpeed, -1, 46, "small");
-      } else if (r < 0.76) {
-        const y = rand(210, 680);
-        spawnEnemy(-42, y, rand(165, 230) * def.enemySpeed, rand(-20, 35), 1, 46, "small");
-        spawnEnemy(W + 42, y + rand(-50, 50), -rand(165, 230) * def.enemySpeed, rand(-20, 35), -1, 46, "small");
-      } else {
-        const side = Math.random() > 0.5 ? -1 : 1;
-        spawnEnemy(side < 0 ? -42 : W + 42, rand(180, 700), side * -rand(155, 225) * def.enemySpeed, rand(-10, 48), side, 46, "small");
-      }
-
-    } else if (no === 4) {
-      const r = Math.random();
-      const side = Math.random() > 0.5 ? -1 : 1;
-      if (r < 0.12) {
-        spawnExtraEnemy(0, rand(90, W - 90), -68, rand(-34, 34) * def.enemySpeed, 104 * def.enemySpeed);
-      } else if (r < 0.24) {
-        spawnExtraEnemy(1, side < 0 ? -66 : W + 66, rand(210, 620), side * -150 * def.enemySpeed, rand(-8, 24));
-      } else if (r < 0.31) {
-        spawnExtraEnemy(0, rand(100, W - 100), -74, rand(-26, 26) * def.enemySpeed, 98 * def.enemySpeed);
-        spawnExtraEnemy(1, side < 0 ? -70 : W + 70, rand(230, 610), side * -138 * def.enemySpeed, rand(-6, 20));
-      } else if (r < 0.51) {
-        spawnEnemy(side < 0 ? -60 : W + 60, rand(200, 600), side * -rand(100, 150) * def.enemySpeed, rand(-5, 26), side, 260, "medium");
-      } else if (r < 0.76) {
-        spawnEnemy(rand(75, W - 75), -42, rand(-55, 55) * def.enemySpeed, rand(185, 245) * def.enemySpeed, 1, 50, "small");
-        spawnEnemy(side < 0 ? -42 : W + 42, rand(200, 700), side * -rand(175, 245) * def.enemySpeed, rand(-12, 42), side, 50, "small");
-      } else {
-        spawnEnemy(side < 0 ? -42 : W + 42, rand(160, 720), side * -rand(160, 230) * def.enemySpeed, rand(-10, 42), side, 50, "small");
-      }
-
-    } else {
-      const r = Math.random();
-      if (r < 0.12) {
-        spawnExtraEnemy(0, rand(90, W - 90), -72, rand(-46, 46) * def.enemySpeed, 150 * def.enemySpeed);
-      } else if (r < 0.24) {
-        const side = Math.random() > 0.5 ? -1 : 1;
-        spawnExtraEnemy(1, side < 0 ? -78 : W + 78, rand(190, 620), side * -118 * def.enemySpeed, rand(-8, 24));
-      } else if (r < 0.32) {
-        const side = Math.random() > 0.5 ? -1 : 1;
-        spawnExtraEnemy(0, rand(90, W - 90), -78, rand(-38, 38) * def.enemySpeed, 136 * def.enemySpeed);
-        spawnExtraEnemy(1, side < 0 ? -82 : W + 82, rand(210, 600), side * -110 * def.enemySpeed, rand(-6, 20));
-      } else if (r < 0.52) {
-        spawnEnemy(rand(60, W - 60), -42, rand(-48, 48) * def.enemySpeed, rand(190, 260) * def.enemySpeed, 1, 52, "small");
-        spawnEnemy(rand(60, W - 60), -84, rand(-48, 48) * def.enemySpeed, rand(170, 235) * def.enemySpeed, -1, 52, "small");
-      } else if (r < 0.76) {
-        spawnEnemy(-42, rand(160, 700), rand(210, 285) * def.enemySpeed, rand(-16, 34), 1, 52, "small");
-        spawnEnemy(W + 42, rand(160, 700), -rand(210, 285) * def.enemySpeed, rand(-16, 34), -1, 52, "small");
-      } else if (r < 0.88) {
-        const side = Math.random() > 0.5 ? -1 : 1;
-        spawnEnemy(side < 0 ? -62 : W + 62, rand(220, 600), side * -rand(115, 160) * def.enemySpeed, rand(-6, 24), side, 260, "medium");
-      } else {
-        const side = Math.random() > 0.5 ? -1 : 1;
-        spawnEnemy(side < 0 ? -42 : W + 42, rand(150, 700), side * -rand(220, 310) * def.enemySpeed, rand(-20, 42), side, 52, "small");
-      }
-    }
-  }
-}
-
-function shouldSpawnStageWave(wave) {
-  if (wave.type === "item" || wave.type === "midboss" || wave.type === "midboss2" || wave.type === "final") return true;
-  stageCombatWaveStep++;
-  return stageCombatWaveStep % 2 === 1;
 }
 
 function spawnExtraEnemy(slot, x, y, vx, vy, options = {}) {
@@ -2814,7 +2701,8 @@ function spawnStageWave(wave) {
   if (wave.type === "item") {
     const spriteMap = { power: "carrierPower", bomb: "carrierBomb", life: "carrierLife", score: "carrierScore", hyperCharge: "carrierScore" };
     const x = wave.drop === "bomb" ? W * 0.72 : wave.drop === "life" ? W * 0.28 : W / 2;
-    spawnEnemy(x, -72, rand(-32, 32), 105 * def.enemySpeed, 1, 130, "carrier", spriteMap[wave.drop], wave.drop);
+    const driftMap = { power: -18, bomb: 20, life: -12, score: 0, hyperCharge: 14 };
+    spawnEnemy(x, -72, driftMap[wave.drop] ?? 0, 105 * def.enemySpeed, 1, 130, "carrier", spriteMap[wave.drop], wave.drop);
     return;
   }
 
@@ -2876,7 +2764,7 @@ function spawnStageWave(wave) {
         spawnEnemy(W / 2 + i * 42, -70 - Math.abs(i) * 26, i * 30 * def.enemySpeed, (160 + Math.abs(i) * 10) * def.enemySpeed, i < 0 ? -1 : 1, 50, "small", def.smallSprite);
       }
       for (let i = 0; i < 2; i++) {
-        spawnEnemy(i === 0 ? -50 : W + 50, rand(300, 500), (i === 0 ? 1 : -1) * 160 * def.enemySpeed, 0, i === 0 ? 1 : -1, 50, "small", def.smallSprite);
+        spawnEnemy(i === 0 ? -50 : W + 50, 320 + i * 150, (i === 0 ? 1 : -1) * 160 * def.enemySpeed, 0, i === 0 ? 1 : -1, 50, "small", def.smallSprite);
       }
     } else if (no === 4) {
       // S4: 中型機のV字（5機）
@@ -2926,8 +2814,8 @@ function spawnStageWave(wave) {
     } else {
       // S5: 全方位高速包囲（10機）
       for (let i = 0; i < 5; i++) {
-        spawnEnemy(-52, 180 + i * 110, 230 * def.enemySpeed, rand(-20, 20), 1, 52, "small", def.smallSprite);
-        spawnEnemy(W + 52, 180 + i * 110, -230 * def.enemySpeed, rand(-20, 20), -1, 52, "small", def.smallSprite);
+        spawnEnemy(-52, 180 + i * 110, 230 * def.enemySpeed, (i - 2) * 8, 1, 52, "small", def.smallSprite);
+        spawnEnemy(W + 52, 180 + i * 110, -230 * def.enemySpeed, (2 - i) * 8, -1, 52, "small", def.smallSprite);
       }
     }
   }
@@ -3054,9 +2942,9 @@ function spawnStageWave(wave) {
       for (let i = 0; i < 3; i++) spawnEnemy(180 + i * 180, -62, (i - 1) * 44 * def.enemySpeed, 205 * def.enemySpeed, i < 1 ? -1 : 1, 46, "small", def.smallSprite);
     } else if (no === 3) {
       for (let i = 0; i < 4; i++) {
-        spawnEnemy(-56, 210 + i * 112, 220 * def.enemySpeed, rand(-22, 22), 1, 50, "small", def.smallSprite);
-        spawnEnemy(W + 56, 210 + i * 112, -220 * def.enemySpeed, rand(-22, 22), -1, 50, "small", def.smallSprite);
-        spawnEnemy(140 + i * 145, -56, rand(-24, 24), 195 * def.enemySpeed, i < 2 ? -1 : 1, 50, "small", def.smallSprite);
+        spawnEnemy(-56, 210 + i * 112, 220 * def.enemySpeed, (i - 1.5) * 12, 1, 50, "small", def.smallSprite);
+        spawnEnemy(W + 56, 210 + i * 112, -220 * def.enemySpeed, (1.5 - i) * 12, -1, 50, "small", def.smallSprite);
+        spawnEnemy(140 + i * 145, -56, (i - 1.5) * 14, 195 * def.enemySpeed, i < 2 ? -1 : 1, 50, "small", def.smallSprite);
       }
     } else if (no === 4) {
       spawnEnemy(-74, 300, 132 * def.enemySpeed, 0, 1, 260, "medium", def.mediumSprite);
@@ -3064,13 +2952,13 @@ function spawnStageWave(wave) {
       spawnEnemy(W / 2, -105, 0, 104 * def.enemySpeed, 1, 260, "medium", def.mediumSprite);
       for (let i = 0; i < 8; i++) {
         const side = i % 2 ? -1 : 1;
-        spawnEnemy(side < 0 ? -52 : W + 52, 170 + i * 72, side * -230 * def.enemySpeed, rand(-18, 26), side, 50, "small", def.smallSprite);
+        spawnEnemy(side < 0 ? -52 : W + 52, 170 + i * 72, side * -230 * def.enemySpeed, (i % 4 - 1.5) * 10, side, 50, "small", def.smallSprite);
       }
     } else {
       for (let i = 0; i < 6; i++) {
         const y = 160 + i * 86;
-        spawnEnemy(-58, y, 260 * def.enemySpeed, rand(-24, 24), 1, 56, "small", def.smallSprite);
-        spawnEnemy(W + 58, y + 34, -260 * def.enemySpeed, rand(-24, 24), -1, 56, "small", def.smallSprite);
+        spawnEnemy(-58, y, 260 * def.enemySpeed, (i - 2.5) * 9, 1, 56, "small", def.smallSprite);
+        spawnEnemy(W + 58, y + 34, -260 * def.enemySpeed, (2.5 - i) * 9, -1, 56, "small", def.smallSprite);
       }
       spawnEnemy(W * 0.28, -112, 18 * def.enemySpeed, 118 * def.enemySpeed, -1, 260, "medium", def.mediumSprite);
       spawnEnemy(W * 0.72, -112, -18 * def.enemySpeed, 118 * def.enemySpeed, 1, 260, "medium", def.mediumSprite);
