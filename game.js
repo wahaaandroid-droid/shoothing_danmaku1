@@ -167,10 +167,11 @@ const hyperSe = {
   loop: new Audio("SE/hyper発動中.m4a"),
 };
 const gameSe = {
-  explodeSmall: createAudioPool("SE/小爆発.m4a", 5, 0.74),
-  explodeMedium: createAudioPool("SE/中爆発.m4a", 4, 0.78),
+  explodeSmall: createAudioPool("SE/小爆発.m4a", 5, 0.44),
+  explodeMedium: createAudioPool("SE/中爆発.m4a", 4, 0.52),
   explodeLarge: createAudioPool("SE/大爆発.m4a", 3, 0.86),
   enemyHit: createAudioPool("SE/敵に弾が当たった時のSE.mp3", 8, 0.62),
+  bombStart: createAudioPool("SE/ボム発動音.mp3", 3, 0.82),
 };
 let currentBgm = null;
 let audioContext = null;
@@ -318,7 +319,7 @@ function playSfx(type, volume = 0.35) {
     playAudioPool(gameSe.explodeLarge, volume / 0.46);
   }
   if (type === "bomb") {
-    playAudioPool(gameSe.explodeLarge, volume / 0.5);
+    playAudioPool(gameSe.bombStart, volume / 0.5);
   }
   if (!audioContext) return;
   try {
