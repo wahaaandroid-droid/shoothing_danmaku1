@@ -9,9 +9,9 @@ const TAU = Math.PI * 2;
 const PLAYER_START_LIVES = 6;
 const IS_MOBILE_BROWSER = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 const MAX_ENEMY_BULLETS = IS_MOBILE_BROWSER ? 380 : 560;
-const MAX_PARTICLES = IS_MOBILE_BROWSER ? 170 : 340;
-const MAX_HIT_SPARKS = IS_MOBILE_BROWSER ? 26 : 52;
-const MAX_EXPLOSIONS = IS_MOBILE_BROWSER ? 18 : 34;
+const MAX_PARTICLES = IS_MOBILE_BROWSER ? 110 : 340;
+const MAX_HIT_SPARKS = IS_MOBILE_BROWSER ? 12 : 52;
+const MAX_EXPLOSIONS = IS_MOBILE_BROWSER ? 8 : 34;
 const EXTRA_LIFE_INTERVAL = 100000000;
 const HYPER_GAUGE_MAX = 1000;
 const HYPER_STOCK_MAX = 5;
@@ -59,6 +59,8 @@ let nextStageNo = 1;
 let perfMode = IS_MOBILE_BROWSER ? 1 : 0;
 let perfLowTimer = 0;
 let perfGoodTimer = 0;
+let lastHitSparkAt = 0;
+let lastExplosionAt = 0;
 
 const STAGE_DURATION = 62;
 const STAGE_WAVES = [
@@ -329,7 +331,7 @@ function isVeryLiteRender() {
 }
 
 function particleLimit() {
-  return Math.max(70, Math.floor(MAX_PARTICLES * perfScale()));
+  return Math.max(IS_MOBILE_BROWSER ? 38 : 70, Math.floor(MAX_PARTICLES * perfScale()));
 }
 
 function canAddParticle(extra = 1) {
@@ -337,20 +339,20 @@ function canAddParticle(extra = 1) {
 }
 
 function enemyBulletLimit() {
-  return Math.max(240, Math.floor(MAX_ENEMY_BULLETS * (perfMode >= 2 ? 0.78 : 1)));
+  return MAX_ENEMY_BULLETS;
 }
 
 function explosionStackGain() {
   const now = performance.now() / 1000;
-  const windowSeconds = IS_MOBILE_BROWSER || perfMode > 0 ? 0.24 : 0.18;
+  const windowSeconds = IS_MOBILE_BROWSER || perfMode > 0 ? 0.34 : 0.18;
   seMix.explosionTimes = seMix.explosionTimes.filter((t) => now - t < windowSeconds);
   const stack = seMix.explosionTimes.length;
-  if ((IS_MOBILE_BROWSER || perfMode > 0) && stack >= (perfMode >= 2 ? 3 : 4)) return 0;
+  if ((IS_MOBILE_BROWSER || perfMode > 0) && stack >= (perfMode >= 2 ? 1 : 2)) return 0;
   seMix.explosionTimes.push(now);
   if (stack === 0) return 1;
-  if (stack === 1) return IS_MOBILE_BROWSER || perfMode > 0 ? 0.56 : 0.72;
-  if (stack === 2) return IS_MOBILE_BROWSER || perfMode > 0 ? 0.34 : 0.52;
-  return IS_MOBILE_BROWSER || perfMode > 0 ? 0.2 : 0.36;
+  if (stack === 1) return IS_MOBILE_BROWSER || perfMode > 0 ? 0.32 : 0.72;
+  if (stack === 2) return IS_MOBILE_BROWSER || perfMode > 0 ? 0.18 : 0.52;
+  return IS_MOBILE_BROWSER || perfMode > 0 ? 0.1 : 0.36;
 }
 
 function playExplosionPool(pool, volume = 1) {
@@ -361,15 +363,15 @@ function playExplosionPool(pool, volume = 1) {
 
 function impactStackGain() {
   const now = performance.now() / 1000;
-  const windowSeconds = IS_MOBILE_BROWSER || perfMode > 0 ? 0.12 : 0.08;
+  const windowSeconds = IS_MOBILE_BROWSER || perfMode > 0 ? 0.18 : 0.08;
   seMix.impactTimes = seMix.impactTimes.filter((t) => now - t < windowSeconds);
   const stack = seMix.impactTimes.length;
-  if ((IS_MOBILE_BROWSER || perfMode > 0) && stack >= (perfMode >= 2 ? 4 : 6)) return 0;
+  if ((IS_MOBILE_BROWSER || perfMode > 0) && stack >= (perfMode >= 2 ? 2 : 3)) return 0;
   seMix.impactTimes.push(now);
   if (stack === 0) return 1;
-  if (stack === 1) return IS_MOBILE_BROWSER || perfMode > 0 ? 0.48 : 0.62;
-  if (stack === 2) return IS_MOBILE_BROWSER || perfMode > 0 ? 0.28 : 0.42;
-  return IS_MOBILE_BROWSER || perfMode > 0 ? 0.16 : 0.26;
+  if (stack === 1) return IS_MOBILE_BROWSER || perfMode > 0 ? 0.32 : 0.62;
+  if (stack === 2) return IS_MOBILE_BROWSER || perfMode > 0 ? 0.18 : 0.42;
+  return IS_MOBILE_BROWSER || perfMode > 0 ? 0.1 : 0.26;
 }
 
 function playEnemyHitSe(volume = 0.16) {
@@ -2176,8 +2178,8 @@ function cull() {
   removeWhere(particles, (p) => p.life <= 0);
   removeWhere(damageTexts, (d) => d.life <= 0);
   trimList(particles, particleLimit());
-  trimList(hitSparks, Math.max(10, Math.floor(MAX_HIT_SPARKS * perfScale())));
-  trimList(explosions, Math.max(8, Math.floor(MAX_EXPLOSIONS * perfScale())));
+  trimList(hitSparks, Math.max(IS_MOBILE_BROWSER ? 4 : 10, Math.floor(MAX_HIT_SPARKS * perfScale())));
+  trimList(explosions, Math.max(IS_MOBILE_BROWSER ? 3 : 8, Math.floor(MAX_EXPLOSIONS * perfScale())));
   trimList(shockwaves, isVeryLiteRender() ? 4 : 8);
 }
 
@@ -2381,13 +2383,20 @@ function spawnHyperPickup() {
 }
 
 function spawnHitSpark(x, y, color = "#8df8ff", scale = 1) {
-  if (isVeryLiteRender() && hitSparks.length > 12) return;
-  hitSparks.push({ x, y, life: 0.18 * scale, max: 0.18 * scale, scale, color });
-  const count = Math.max(1, Math.floor(6 * scale * perfScale()));
+  const now = performance.now() / 1000;
+  if (IS_MOBILE_BROWSER || perfMode > 0) {
+    const minGap = perfMode >= 2 ? 0.07 : 0.045;
+    if (now - lastHitSparkAt < minGap) return;
+    if (hitSparks.length >= (perfMode >= 2 ? 6 : 9)) return;
+    lastHitSparkAt = now;
+  }
+  hitSparks.push({ x, y, life: (isLiteRender() ? 0.11 : 0.18) * scale, max: (isLiteRender() ? 0.11 : 0.18) * scale, scale, color });
+  const baseCount = IS_MOBILE_BROWSER || perfMode > 0 ? 1.4 : 6;
+  const count = Math.max(IS_MOBILE_BROWSER || perfMode > 0 ? 0 : 1, Math.floor(baseCount * scale * perfScale()));
   for (let i = 0; i < count && canAddParticle(); i++) {
     const a = rand(0, TAU);
     const s = rand(35, 150) * scale;
-    particles.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: rand(0.16, 0.34), color });
+    particles.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: isLiteRender() ? rand(0.08, 0.16) : rand(0.16, 0.34), color });
   }
 }
 
@@ -2503,12 +2512,18 @@ function useBomb() {
 }
 
 function massiveExplosion(x, y, scale = 1) {
-  explosions.push({ x, y, life: 0.7 * scale, max: 0.7 * scale, scale });
-  const count = Math.max(5, Math.floor(34 * scale * perfScale()));
+  const now = performance.now() / 1000;
+  if ((IS_MOBILE_BROWSER || perfMode > 0) && now - lastExplosionAt < (perfMode >= 2 ? 0.11 : 0.07)) {
+    scale *= 0.75;
+  }
+  lastExplosionAt = now;
+  explosions.push({ x, y, life: (isLiteRender() ? 0.38 : 0.7) * scale, max: (isLiteRender() ? 0.38 : 0.7) * scale, scale });
+  const baseCount = IS_MOBILE_BROWSER || perfMode > 0 ? 5 : 34;
+  const count = Math.max(isLiteRender() ? 1 : 5, Math.floor(baseCount * scale * perfScale()));
   for (let i = 0; i < count && canAddParticle(); i++) {
     const a = rand(0, TAU);
     const s = rand(50, 260) * scale;
-    particles.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: rand(0.3, 0.9), color: Math.random() > 0.45 ? "#ff7c33" : "#7df4ff" });
+    particles.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: isLiteRender() ? rand(0.18, 0.36) : rand(0.3, 0.9), color: Math.random() > 0.45 ? "#ff7c33" : "#7df4ff" });
   }
 }
 
@@ -2986,34 +3001,6 @@ function drawBeams() {
 
 function drawEnemyBullets() {
   ctx.save();
-  if (isLiteRender()) {
-    ctx.shadowBlur = 0;
-    for (const b of enemyBullets) {
-      ctx.fillStyle = b.color;
-      ctx.strokeStyle = b.color;
-      if (b.kind === "laser" || b.kind === "needle") {
-        const a = Math.atan2(b.vy, b.vx);
-        ctx.save();
-        ctx.translate(b.x, b.y);
-        ctx.rotate(a);
-        ctx.beginPath();
-        ctx.ellipse(0, 0, b.r * (b.kind === "laser" ? 2.2 : 1.9), b.r * 0.82, 0, 0, TAU);
-        ctx.fill();
-        ctx.restore();
-      } else if (b.kind === "ring") {
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.arc(b.x, b.y, b.r * 1.25, 0, TAU);
-        ctx.stroke();
-      } else {
-        ctx.beginPath();
-        ctx.arc(b.x, b.y, b.r, 0, TAU);
-        ctx.fill();
-      }
-    }
-    ctx.restore();
-    return;
-  }
   for (const b of enemyBullets) {
     ctx.shadowColor = b.color;
     ctx.shadowBlur = 12;
@@ -3243,14 +3230,22 @@ function drawEffects() {
     ctx.save();
     ctx.translate(e.x, e.y);
     ctx.globalAlpha = 1 - k;
-    if (spriteSheet.complete && spriteSheet.naturalWidth && !isVeryLiteRender()) {
+    if (spriteSheet.complete && spriteSheet.naturalWidth && !isLiteRender()) {
       ctx.rotate(k * 0.4);
       drawSprite(sprites.explosion, 0, 0, 150 * e.scale * (0.55 + k), 120 * e.scale * (0.55 + k), 0, true);
       ctx.restore();
       continue;
     }
     ctx.shadowColor = "#ff9a42";
-    ctx.shadowBlur = isLiteRender() ? 8 : 28;
+    ctx.shadowBlur = isLiteRender() ? 0 : 28;
+    if (isLiteRender()) {
+      ctx.fillStyle = `rgba(255, 154, 66, ${0.72 * (1 - k)})`;
+      ctx.beginPath();
+      ctx.arc(0, 0, 52 * e.scale * (0.28 + k), 0, TAU);
+      ctx.fill();
+      ctx.restore();
+      continue;
+    }
     const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 86 * e.scale * (0.3 + k));
     g.addColorStop(0, "#ffffff");
     g.addColorStop(0.22, "#ffe06f");
