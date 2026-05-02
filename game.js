@@ -76,6 +76,7 @@ let phaseTimer = 0;
 let phaseBanner = 0;
 let stageNo = 1;
 let stageWaveIndex = 0;
+let stageCombatWaveStep = 0;
 let stageScroll = 0;
 let lifePickupsThisStage = 0;
 let bossDeathClock = 0;
@@ -1151,6 +1152,7 @@ function beginStage() {
   phaseTimer = 0;
   phaseBanner = 2.2;
   stageWaveIndex = 0;
+  stageCombatWaveStep = 0;
   lifePickupsThisStage = 0;
   stageScroll = 0;
   boss.x = W / 2;
@@ -2636,30 +2638,31 @@ function updateStageSpawns() {
   const no = def.no;
   const waves = stageWaves();
   while (stageWaveIndex < waves.length && phaseTimer >= waves[stageWaveIndex].t) {
-    spawnStageWave(waves[stageWaveIndex]);
+    const wave = waves[stageWaveIndex];
+    if (shouldSpawnStageWave(wave)) spawnStageWave(wave);
     stageWaveIndex++;
   }
 
-  // ステージ別の流れスポーンも分岐を増やして、道中の単調さを減らす
-  const spawnInterval = no === 1 ? 1.24 : no === 2 ? 1.04 : no === 3 ? 1.08 : no === 4 ? 1.12 : 0.96;
+  // ランダム湧きは控えめにして、固定ウェーブの間に余白を作る
+  const spawnInterval = no === 1 ? 2.45 : no === 2 ? 2.08 : no === 3 ? 2.16 : no === 4 ? 2.24 : 1.92;
 
   if (enemyClock > spawnInterval) {
     enemyClock = 0;
 
     if (no === 1) {
       const r = Math.random();
-      if (r < 0.18) {
+      if (r < 0.12) {
         spawnExtraEnemy(0, rand(95, W - 95), -56, rand(-28, 28) * def.enemySpeed, 120 * def.enemySpeed);
-      } else if (r < 0.34) {
+      } else if (r < 0.24) {
         const side = Math.random() > 0.5 ? -1 : 1;
         spawnExtraEnemy(1, side < 0 ? -58 : W + 58, rand(220, 660), side * -120 * def.enemySpeed, rand(-10, 28));
-      } else if (r < 0.42) {
+      } else if (r < 0.30) {
         const side = Math.random() > 0.5 ? -1 : 1;
         spawnExtraEnemy(0, rand(105, W - 105), -64, rand(-20, 20) * def.enemySpeed, 112 * def.enemySpeed);
         spawnExtraEnemy(1, side < 0 ? -62 : W + 62, rand(250, 620), side * -108 * def.enemySpeed, rand(-8, 22));
-      } else if (r < 0.61) {
+      } else if (r < 0.52) {
         spawnEnemy(rand(90, W - 90), -42, rand(-34, 34) * def.enemySpeed, rand(135, 180) * def.enemySpeed, 1, 42, "small");
-      } else if (r < 0.82) {
+      } else if (r < 0.76) {
         spawnEnemy(-42, rand(250, 720), rand(118, 170) * def.enemySpeed, rand(-8, 34), 1, 42, "small");
         spawnEnemy(W + 42, rand(250, 720), -rand(118, 170) * def.enemySpeed, rand(-8, 34), -1, 42, "small");
       } else {
@@ -2669,20 +2672,20 @@ function updateStageSpawns() {
 
     } else if (no === 2) {
       const r = Math.random();
-      if (r < 0.17) {
+      if (r < 0.12) {
         const side = Math.random() > 0.5 ? -1 : 1;
         spawnExtraEnemy(0, side < 0 ? -70 : W + 70, rand(170, 600), side * -250 * def.enemySpeed, rand(18, 58));
-      } else if (r < 0.34) {
+      } else if (r < 0.24) {
         spawnExtraEnemy(1, rand(100, W - 100), -64, rand(-18, 18) * def.enemySpeed, 126 * def.enemySpeed);
-      } else if (r < 0.43) {
+      } else if (r < 0.31) {
         const side = Math.random() > 0.5 ? -1 : 1;
         spawnExtraEnemy(0, side < 0 ? -72 : W + 72, rand(180, 560), side * -228 * def.enemySpeed, rand(14, 48));
         spawnExtraEnemy(1, rand(110, W - 110), -70, rand(-14, 14) * def.enemySpeed, 118 * def.enemySpeed);
-      } else if (r < 0.62) {
+      } else if (r < 0.52) {
         const side = Math.random() > 0.5 ? -1 : 1;
         spawnEnemy(side < 0 ? -42 : W + 42, rand(150, 720), side * -rand(190, 270) * def.enemySpeed, rand(-12, 34), side, 42, "small");
         spawnEnemy(side < 0 ? -58 : W + 58, rand(150, 720), side * -rand(160, 230) * def.enemySpeed, rand(20, 58), side, 42, "small");
-      } else if (r < 0.82) {
+      } else if (r < 0.76) {
         spawnEnemy(rand(90, W - 90), -42, rand(-70, 70) * def.enemySpeed, rand(190, 250) * def.enemySpeed, 1, 42, "small");
       } else {
         spawnEnemy(-42, rand(180, 670), rand(210, 280) * def.enemySpeed, rand(-14, 24), 1, 42, "small");
@@ -2691,19 +2694,19 @@ function updateStageSpawns() {
 
     } else if (no === 3) {
       const r = Math.random();
-      if (r < 0.17) {
+      if (r < 0.12) {
         const side = Math.random() > 0.5 ? -1 : 1;
         spawnExtraEnemy(0, side < 0 ? -62 : W + 62, rand(190, 620), side * -142 * def.enemySpeed, rand(-16, 32));
-      } else if (r < 0.34) {
+      } else if (r < 0.24) {
         spawnExtraEnemy(1, rand(80, W - 80), -70, rand(-48, 48) * def.enemySpeed, 146 * def.enemySpeed);
-      } else if (r < 0.43) {
+      } else if (r < 0.31) {
         const side = Math.random() > 0.5 ? -1 : 1;
         spawnExtraEnemy(0, side < 0 ? -66 : W + 66, rand(210, 610), side * -132 * def.enemySpeed, rand(-12, 26));
         spawnExtraEnemy(1, rand(90, W - 90), -76, rand(-40, 40) * def.enemySpeed, 136 * def.enemySpeed);
-      } else if (r < 0.62) {
+      } else if (r < 0.52) {
         spawnEnemy(rand(80, W - 80), -42, rand(-34, 34) * def.enemySpeed, rand(170, 235) * def.enemySpeed, 1, 46, "small");
         spawnEnemy(rand(80, W - 80), -72, rand(-34, 34) * def.enemySpeed, rand(150, 205) * def.enemySpeed, -1, 46, "small");
-      } else if (r < 0.82) {
+      } else if (r < 0.76) {
         const y = rand(210, 680);
         spawnEnemy(-42, y, rand(165, 230) * def.enemySpeed, rand(-20, 35), 1, 46, "small");
         spawnEnemy(W + 42, y + rand(-50, 50), -rand(165, 230) * def.enemySpeed, rand(-20, 35), -1, 46, "small");
@@ -2715,16 +2718,16 @@ function updateStageSpawns() {
     } else if (no === 4) {
       const r = Math.random();
       const side = Math.random() > 0.5 ? -1 : 1;
-      if (r < 0.17) {
+      if (r < 0.12) {
         spawnExtraEnemy(0, rand(90, W - 90), -68, rand(-34, 34) * def.enemySpeed, 104 * def.enemySpeed);
-      } else if (r < 0.34) {
+      } else if (r < 0.24) {
         spawnExtraEnemy(1, side < 0 ? -66 : W + 66, rand(210, 620), side * -150 * def.enemySpeed, rand(-8, 24));
-      } else if (r < 0.43) {
+      } else if (r < 0.31) {
         spawnExtraEnemy(0, rand(100, W - 100), -74, rand(-26, 26) * def.enemySpeed, 98 * def.enemySpeed);
         spawnExtraEnemy(1, side < 0 ? -70 : W + 70, rand(230, 610), side * -138 * def.enemySpeed, rand(-6, 20));
-      } else if (r < 0.61) {
+      } else if (r < 0.51) {
         spawnEnemy(side < 0 ? -60 : W + 60, rand(200, 600), side * -rand(100, 150) * def.enemySpeed, rand(-5, 26), side, 260, "medium");
-      } else if (r < 0.82) {
+      } else if (r < 0.76) {
         spawnEnemy(rand(75, W - 75), -42, rand(-55, 55) * def.enemySpeed, rand(185, 245) * def.enemySpeed, 1, 50, "small");
         spawnEnemy(side < 0 ? -42 : W + 42, rand(200, 700), side * -rand(175, 245) * def.enemySpeed, rand(-12, 42), side, 50, "small");
       } else {
@@ -2733,22 +2736,22 @@ function updateStageSpawns() {
 
     } else {
       const r = Math.random();
-      if (r < 0.17) {
+      if (r < 0.12) {
         spawnExtraEnemy(0, rand(90, W - 90), -72, rand(-46, 46) * def.enemySpeed, 150 * def.enemySpeed);
-      } else if (r < 0.34) {
+      } else if (r < 0.24) {
         const side = Math.random() > 0.5 ? -1 : 1;
         spawnExtraEnemy(1, side < 0 ? -78 : W + 78, rand(190, 620), side * -118 * def.enemySpeed, rand(-8, 24));
-      } else if (r < 0.45) {
+      } else if (r < 0.32) {
         const side = Math.random() > 0.5 ? -1 : 1;
         spawnExtraEnemy(0, rand(90, W - 90), -78, rand(-38, 38) * def.enemySpeed, 136 * def.enemySpeed);
         spawnExtraEnemy(1, side < 0 ? -82 : W + 82, rand(210, 600), side * -110 * def.enemySpeed, rand(-6, 20));
-      } else if (r < 0.62) {
+      } else if (r < 0.52) {
         spawnEnemy(rand(60, W - 60), -42, rand(-48, 48) * def.enemySpeed, rand(190, 260) * def.enemySpeed, 1, 52, "small");
         spawnEnemy(rand(60, W - 60), -84, rand(-48, 48) * def.enemySpeed, rand(170, 235) * def.enemySpeed, -1, 52, "small");
-      } else if (r < 0.82) {
+      } else if (r < 0.76) {
         spawnEnemy(-42, rand(160, 700), rand(210, 285) * def.enemySpeed, rand(-16, 34), 1, 52, "small");
         spawnEnemy(W + 42, rand(160, 700), -rand(210, 285) * def.enemySpeed, rand(-16, 34), -1, 52, "small");
-      } else if (r < 0.91) {
+      } else if (r < 0.88) {
         const side = Math.random() > 0.5 ? -1 : 1;
         spawnEnemy(side < 0 ? -62 : W + 62, rand(220, 600), side * -rand(115, 160) * def.enemySpeed, rand(-6, 24), side, 260, "medium");
       } else {
@@ -2757,6 +2760,12 @@ function updateStageSpawns() {
       }
     }
   }
+}
+
+function shouldSpawnStageWave(wave) {
+  if (wave.type === "item" || wave.type === "midboss" || wave.type === "midboss2" || wave.type === "final") return true;
+  stageCombatWaveStep++;
+  return stageCombatWaveStep % 2 === 1;
 }
 
 function spawnExtraEnemy(slot, x, y, vx, vy, options = {}) {
@@ -2773,7 +2782,7 @@ function spawnExtraWave(wave) {
   const no = def.no;
   const slots = wave.type === "exoticA" ? [0] : wave.type === "exoticB" ? [1] : [0, 1];
   for (const slot of slots) {
-    const count = wave.type === "exoticMix" ? (no >= 5 ? 3 : 2) : no >= 4 ? 3 : 2;
+    const count = wave.type === "exoticMix" ? (no >= 5 ? 2 : 1) : no >= 4 ? 2 : 1;
     for (let i = 0; i < count; i++) {
       const spread = count <= 2 ? 170 : 130;
       const x = W / 2 + (i - (count - 1) / 2) * spread + (slot ? 34 : -34);
@@ -3072,37 +3081,37 @@ function spawnStageWave(wave) {
   // ── final ─────────────────────────────────────────────────
   if (wave.type === "final") {
     if (no <= 2) {
-      // S1・S2: 2列グリッド（オリジナルと同様）
+      // S1・S2: 2列グリッドを薄めて、ボス前に余白を残す
       for (let ring = 0; ring < 2; ring++) {
-        for (let i = 0; i < 9; i++) {
-          spawnEnemy(78 + i * 70, -70 - ring * 130, (i - 4) * 14 * def.enemySpeed, (185 + ring * 20) * def.enemySpeed, i < 4 ? -1 : 1, 62, "small", def.smallSprite);
+        for (let i = 0; i < 5; i++) {
+          spawnEnemy(148 + i * 105, -70 - ring * 130, (i - 2) * 14 * def.enemySpeed, (178 + ring * 18) * def.enemySpeed, i < 2 ? -1 : 1, 62, "small", def.smallSprite);
         }
       }
     } else if (no === 3) {
-      // S3: 包囲環（上から＋左右から同時）
-      for (let i = 0; i < 9; i++) {
-        spawnEnemy(78 + i * 70, -70, (i - 4) * 14 * def.enemySpeed, 185 * def.enemySpeed, i < 4 ? -1 : 1, 62, "small", def.smallSprite);
-      }
+      // S3: 包囲環を半分に抑える
       for (let i = 0; i < 5; i++) {
-        spawnEnemy(-52, 200 + i * 110, 180 * def.enemySpeed, 0, 1, 52, "small", def.smallSprite);
-        spawnEnemy(W + 52, 200 + i * 110, -180 * def.enemySpeed, 0, -1, 52, "small", def.smallSprite);
+        spawnEnemy(148 + i * 105, -70, (i - 2) * 14 * def.enemySpeed, 180 * def.enemySpeed, i < 2 ? -1 : 1, 62, "small", def.smallSprite);
+      }
+      for (let i = 0; i < 2; i++) {
+        spawnEnemy(-52, 250 + i * 160, 170 * def.enemySpeed, 0, 1, 52, "small", def.smallSprite);
+        spawnEnemy(W + 52, 250 + i * 160, -170 * def.enemySpeed, 0, -1, 52, "small", def.smallSprite);
       }
     } else if (no === 4) {
-      // S4: 中型3機＋小型12機の大部隊
-      for (let i = 0; i < 3; i++) {
-        spawnEnemy(155 + i * 205, -110 - i * 70, (i - 1) * 12, 88 * def.enemySpeed, i === 0 ? -1 : 1, 260, "medium", def.mediumSprite);
+      // S4: 中型2機＋小型6機まで減らす
+      for (let i = 0; i < 2; i++) {
+        spawnEnemy(220 + i * 290, -110 - i * 70, (i - 0.5) * 12, 86 * def.enemySpeed, i === 0 ? -1 : 1, 260, "medium", def.mediumSprite);
       }
-      for (let ring = 0; ring < 2; ring++) {
+      for (let ring = 0; ring < 1; ring++) {
         for (let i = 0; i < 6; i++) {
           const x = wave.side < 0 ? -52 : W + 52;
           spawnEnemy(x, 180 + i * 90 + ring * 50, (wave.side ?? 1) * -180 * def.enemySpeed, -10, wave.side ?? 1, 46, "small", def.smallSprite);
         }
       }
     } else {
-      // S5: 3列グリッド（圧倒的物量）
-      for (let ring = 0; ring < 3; ring++) {
-        for (let i = 0; i < 9; i++) {
-          spawnEnemy(78 + i * 70, -70 - ring * 110, (i - 4) * 16 * def.enemySpeed, (190 + ring * 24) * def.enemySpeed, i < 4 ? -1 : 1, 62, "small", def.smallSprite);
+      // S5: 最終面も道中密度を抑え、2列グリッドに縮小
+      for (let ring = 0; ring < 2; ring++) {
+        for (let i = 0; i < 7; i++) {
+          spawnEnemy(92 + i * 92, -70 - ring * 120, (i - 3) * 16 * def.enemySpeed, (185 + ring * 22) * def.enemySpeed, i < 3 ? -1 : 1, 62, "small", def.smallSprite);
         }
       }
     }
