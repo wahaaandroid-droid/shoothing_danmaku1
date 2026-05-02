@@ -76,6 +76,7 @@ let phaseTimer = 0;
 let phaseBanner = 0;
 let stageNo = 1;
 let stageWaveIndex = 0;
+let activeStageWaveMotion = null;
 let stageScroll = 0;
 let lifePickupsThisStage = 0;
 let bossDeathClock = 0;
@@ -93,86 +94,72 @@ let bossDeathBoomStep = 0;
 
 const STAGE_DURATION = 62;
 const STAGE_1_WAVES = [
-  { t: 0.8, type: "sweep", side: -1 },
-  { t: 5.8, type: "exoticA" },
-  { t: 10.4, type: "rain" },
-  { t: 15.2, type: "medium" },
-  { t: 19.8, type: "exoticB" },
-  { t: 24.6, type: "midboss" },
-  { t: 29.6, type: "item", drop: "power" },
-  { t: 32.4, type: "cross" },
-  { t: 37.0, type: "v" },
-  { t: 41.5, type: "exoticMix" },
-  { t: 46.0, type: "item", drop: "bomb" },
-  { t: 49.8, type: "midboss2" },
-  { t: 54.6, type: "final" },
-  { t: 58.0, type: "item", drop: "score" },
+  { t: 1.0, type: "triangle" },
+  { t: 7.4, type: "exoticA" },
+  { t: 14.8, type: "rain" },
+  { t: 21.6, type: "medium" },
+  { t: 27.8, type: "midboss" },
+  { t: 34.8, type: "item", drop: "power" },
+  { t: 38.8, type: "cross" },
+  { t: 45.2, type: "exoticMix" },
+  { t: 51.0, type: "midboss2" },
+  { t: 56.2, type: "final" },
+  { t: 59.0, type: "item", drop: "score" },
 ];
 const STAGE_2_WAVES = [
   { t: 0.7, type: "sweep", side: 1 },
-  { t: 4.8, type: "cross" },
-  { t: 8.9, type: "pincer" },
-  { t: 12.8, type: "exoticB" },
-  { t: 16.9, type: "v" },
-  { t: 20.2, type: "item", drop: "power" },
-  { t: 22.8, type: "midboss" },
-  { t: 29.6, type: "rain" },
-  { t: 35.0, type: "sweep", side: -1 },
-  { t: 40.2, type: "exoticA" },
-  { t: 44.8, type: "medium" },
-  { t: 48.6, type: "midboss2" },
-  { t: 53.2, type: "final" },
-  { t: 57.2, type: "item", drop: "bomb" },
+  { t: 4.6, type: "corridorFold" },
+  { t: 12.6, type: "cross" },
+  { t: 17.0, type: "pincer" },
+  { t: 22.4, type: "midboss" },
+  { t: 29.8, type: "item", drop: "power" },
+  { t: 34.2, type: "rain" },
+  { t: 39.6, type: "exoticB" },
+  { t: 45.2, type: "medium" },
+  { t: 50.0, type: "midboss2" },
+  { t: 55.0, type: "final" },
+  { t: 58.4, type: "item", drop: "bomb" },
 ];
 const STAGE_3_WAVES = [
   { t: 0.9, type: "ambush" },
-  { t: 5.2, type: "exoticA" },
-  { t: 9.8, type: "v" },
-  { t: 14.2, type: "cross" },
-  { t: 18.4, type: "midboss" },
-  { t: 24.4, type: "rain" },
-  { t: 30.0, type: "exoticB" },
-  { t: 35.0, type: "medium" },
-  { t: 39.8, type: "item", drop: "bomb" },
-  { t: 44.4, type: "ambush" },
-  { t: 50.8, type: "midboss2" },
-  { t: 55.0, type: "final" },
-  { t: 58.5, type: "item", drop: "score" },
+  { t: 7.4, type: "crimsonOrbit" },
+  { t: 15.4, type: "v" },
+  { t: 20.2, type: "midboss" },
+  { t: 28.8, type: "rain" },
+  { t: 35.4, type: "exoticB" },
+  { t: 42.4, type: "medium" },
+  { t: 47.2, type: "item", drop: "bomb" },
+  { t: 52.4, type: "midboss2" },
+  { t: 56.8, type: "final" },
+  { t: 59.4, type: "item", drop: "score" },
 ];
 const STAGE_4_WAVES = [
-  { t: 1.2, type: "medium" },
-  { t: 6.4, type: "sweep", side: -1 },
-  { t: 11.4, type: "exoticB" },
-  { t: 16.4, type: "rain" },
-  { t: 21.6, type: "v" },
-  { t: 26.2, type: "item", drop: "power" },
-  { t: 31.8, type: "cross" },
-  { t: 36.8, type: "midboss" },
-  { t: 42.4, type: "exoticMix" },
-  { t: 47.6, type: "medium" },
-  { t: 53.2, type: "midboss2" },
-  { t: 56.8, type: "final" },
-  { t: 59.2, type: "item", drop: "score" },
+  { t: 3.2, type: "fortressWall" },
+  { t: 12.0, type: "medium" },
+  { t: 18.8, type: "rain" },
+  { t: 27.2, type: "item", drop: "power" },
+  { t: 34.6, type: "midboss" },
+  { t: 42.8, type: "cross" },
+  { t: 49.2, type: "exoticMix" },
+  { t: 55.0, type: "midboss2" },
+  { t: 58.5, type: "final" },
+  { t: 60.4, type: "item", drop: "score" },
 ];
 const STAGE_5_WAVES = [
-  { t: 0.8, type: "sweep", side: -1 },
-  { t: 6.0, type: "cross" },
-  { t: 11.0, type: "exoticA" },
-  { t: 16.2, type: "v" },
-  { t: 21.2, type: "medium" },
-  { t: 25.4, type: "item", drop: "power" },
+  { t: 0.8, type: "finalGlyph" },
+  { t: 7.2, type: "cross" },
+  { t: 13.8, type: "item", drop: "power" },
+  { t: 20.2, type: "medium" },
   { t: 29.0, type: "midboss" },
-  { t: 35.2, type: "rain" },
-  { t: 41.0, type: "exoticB" },
-  { t: 46.0, type: "cross" },
+  { t: 37.0, type: "rain" },
+  { t: 43.6, type: "exoticB" },
   { t: 51.4, type: "item", drop: "hyperCharge" },
-  { t: 56.2, type: "medium" },
-  { t: 61.4, type: "midboss2" },
-  { t: 67.2, type: "exoticMix" },
-  { t: 72.6, type: "sweep", side: 1 },
-  { t: 78.0, type: "rain" },
-  { t: 83.0, type: "final" },
-  { t: 88.0, type: "item", drop: "score" },
+  { t: 58.6, type: "v" },
+  { t: 65.6, type: "midboss2" },
+  { t: 73.6, type: "exoticMix" },
+  { t: 79.8, type: "sweep", side: 1 },
+  { t: 84.8, type: "final" },
+  { t: 89.4, type: "item", drop: "score" },
 ];
 
 const keys = new Set();
@@ -2650,9 +2637,69 @@ function updateSpawns(dt) {
 function updateStageSpawns() {
   const waves = stageWaves();
   while (stageWaveIndex < waves.length && phaseTimer >= waves[stageWaveIndex].t) {
-    spawnStageWave(waves[stageWaveIndex]);
+    const wave = waves[stageWaveIndex];
+    activeStageWaveMotion = stageRouteMotion(currentStage().no, wave.type);
+    spawnStageWave(wave);
+    activeStageWaveMotion = null;
     stageWaveIndex++;
   }
+}
+
+function stageRouteMotion(no, type) {
+  const motions = {
+    1: {
+      triangle: { moveKind: "zigzag", amp: 74, freq: 3.8 },
+      rain: { moveKind: "zigzag", amp: 54, freq: 4.5 },
+      cross: { moveKind: "retreat", amp: 34, freq: 3.2, turnTime: 1.65, retreatSpeed: 170 },
+      final: { moveKind: "zigzag", amp: 36, freq: 3.1 },
+    },
+    2: {
+      sweep: { moveKind: "dashBrake", amp: 24, freq: 5.2, brakeTime: 0.95, exitTime: 2.45 },
+      corridorFold: { moveKind: "retreat", amp: 46, freq: 4.8, turnTime: 1.35, retreatSpeed: 250 },
+      cross: { moveKind: "swoop", amp: 72, freq: 3.6 },
+      pincer: { moveKind: "retreat", amp: 28, freq: 5.0, turnTime: 1.25, retreatSpeed: 230 },
+      final: { moveKind: "dashBrake", amp: 22, freq: 4.2, brakeTime: 0.8, exitTime: 2.2 },
+    },
+    3: {
+      ambush: { moveKind: "swoop", amp: 82, freq: 2.6 },
+      crimsonOrbit: { moveKind: "orbit", amp: 58, freq: 2.1 },
+      v: { moveKind: "orbit", amp: 42, freq: 1.7 },
+      rain: { moveKind: "swoop", amp: 64, freq: 2.4 },
+      final: { moveKind: "orbit", amp: 36, freq: 1.5 },
+    },
+    4: {
+      fortressWall: { moveKind: "dashBrake", amp: 18, freq: 2.4, brakeTime: 1.15, exitTime: 3.2 },
+      medium: { moveKind: "dashBrake", amp: 14, freq: 2.0, brakeTime: 1.25, exitTime: 3.0 },
+      rain: { moveKind: "retreat", amp: 22, freq: 2.8, turnTime: 1.8, retreatSpeed: 150 },
+      cross: { moveKind: "dashBrake", amp: 28, freq: 2.8, brakeTime: 1.05, exitTime: 2.9 },
+      final: { moveKind: "dashBrake", amp: 18, freq: 2.2, brakeTime: 0.9, exitTime: 2.4 },
+    },
+    5: {
+      finalGlyph: { moveKind: "swoop", amp: 92, freq: 3.3 },
+      cross: { moveKind: "zigzag", amp: 66, freq: 5.4 },
+      medium: { moveKind: "dashBrake", amp: 34, freq: 3.0, brakeTime: 1.0, exitTime: 2.8 },
+      rain: { moveKind: "zigzag", amp: 86, freq: 5.8 },
+      v: { moveKind: "retreat", amp: 46, freq: 4.6, turnTime: 1.55, retreatSpeed: 260 },
+      sweep: { moveKind: "swoop", amp: 88, freq: 4.0 },
+      final: { moveKind: "zigzag", amp: 44, freq: 4.4 },
+    },
+  };
+  return motions[no]?.[type] || null;
+}
+
+function stageMotionOptions(template, x, y, side, size) {
+  if (!template || size === "midboss" || size === "carrier" || size === "extra") return null;
+  const phase = (Math.abs(x) * 0.013 + Math.abs(y) * 0.017 + (side || 1) * 0.9) % TAU;
+  return {
+    moveKind: template.moveKind,
+    moveAmp: template.amp ?? 40,
+    moveFreq: template.freq ?? 3,
+    movePhase: phase,
+    moveTurnTime: template.turnTime ?? 1.6,
+    retreatSpeed: template.retreatSpeed ?? 190,
+    brakeTime: template.brakeTime ?? 1.05,
+    exitTime: template.exitTime ?? 2.75,
+  };
 }
 
 function spawnExtraEnemy(slot, x, y, vx, vy, options = {}) {
@@ -2703,6 +2750,134 @@ function spawnStageWave(wave) {
     const x = wave.drop === "bomb" ? W * 0.72 : wave.drop === "life" ? W * 0.28 : W / 2;
     const driftMap = { power: -18, bomb: 20, life: -12, score: 0, hyperCharge: 14 };
     spawnEnemy(x, -72, driftMap[wave.drop] ?? 0, 105 * def.enemySpeed, 1, 130, "carrier", spriteMap[wave.drop], wave.drop);
+    return;
+  }
+
+  // ── stage-specific shape waves ────────────────────────────
+  if (wave.type === "triangle") {
+    // S1: 敵の位置そのものを三角形にし、ゆっくりジグザグで崩す
+    for (let row = 0; row < 4; row++) {
+      const count = row + 1;
+      for (let i = 0; i < count; i++) {
+        const x = W / 2 + (i - (count - 1) / 2) * 76;
+        const y = -72 - row * 72;
+        const side = i < count / 2 ? -1 : 1;
+        spawnEnemy(x, y, (i - (count - 1) / 2) * 12 * def.enemySpeed, (122 + row * 8) * def.enemySpeed, side, 44, "small", def.smallSprite, null, {
+          moveKind: "zigzag",
+          moveAmp: 56 + row * 8,
+          moveFreq: 3.4 + row * 0.35,
+          movePhase: row + i * 0.8,
+        });
+      }
+    }
+    return;
+  }
+
+  if (wave.type === "corridorFold") {
+    // S2: 左右レーンから手前へ突っ込み、折り返して奥へ帰る
+    for (let i = 0; i < 4; i++) {
+      const y = 150 + i * 86;
+      spawnEnemy(-58 - i * 18, y, 238 * def.enemySpeed, 18 * def.enemySpeed, 1, 46, "small", def.smallSprite, null, {
+        moveKind: "retreat",
+        moveAmp: 38,
+        moveFreq: 5.2,
+        movePhase: i * 0.6,
+        moveTurnTime: 1.05 + i * 0.09,
+        retreatSpeed: 242 + i * 10,
+      });
+      spawnEnemy(W + 58 + i * 18, y + 42, -238 * def.enemySpeed, 18 * def.enemySpeed, -1, 46, "small", def.smallSprite, null, {
+        moveKind: "retreat",
+        moveAmp: 38,
+        moveFreq: 5.2,
+        movePhase: Math.PI + i * 0.6,
+        moveTurnTime: 1.05 + i * 0.09,
+        retreatSpeed: 242 + i * 10,
+      });
+    }
+    return;
+  }
+
+  if (wave.type === "crimsonOrbit") {
+    // S3: ひし形配置が回り込みながら降りてくる
+    const points = [
+      [0, -120],
+      [-92, -48],
+      [92, -48],
+      [-164, 38],
+      [164, 38],
+      [-92, 124],
+      [92, 124],
+      [0, 196],
+    ];
+    for (let i = 0; i < points.length; i++) {
+      const [dx, dy] = points[i];
+      const side = dx < 0 ? -1 : 1;
+      spawnEnemy(W / 2 + dx, -110 + dy, dx * 0.04 * def.enemySpeed, 118 * def.enemySpeed, side, 50, "small", def.smallSprite, null, {
+        moveKind: "orbit",
+        moveAmp: 46 + (i % 3) * 10,
+        moveFreq: 1.75 + (i % 2) * 0.35,
+        movePhase: (i / points.length) * TAU,
+      });
+    }
+    return;
+  }
+
+  if (wave.type === "fortressWall") {
+    // S4: 要塞の壁のような矩形配置。手前で減速してから横へ散る
+    for (let row = 0; row < 3; row++) {
+      for (let col = 0; col < 4; col++) {
+        const x = 120 + col * 160;
+        const y = -95 - row * 86;
+        const isAnchor = row === 1 && (col === 1 || col === 2);
+        spawnEnemy(x, y, (col - 1.5) * 18 * def.enemySpeed, (90 + row * 12) * def.enemySpeed, col < 2 ? -1 : 1, isAnchor ? 260 : 52, isAnchor ? "medium" : "small", isAnchor ? def.mediumSprite : def.smallSprite, null, {
+          moveKind: "dashBrake",
+          moveAmp: isAnchor ? 12 : 22,
+          moveFreq: 2.0 + row * 0.2,
+          movePhase: row + col * 0.4,
+          brakeTime: 1.1 + row * 0.12,
+          exitTime: 3.0 + row * 0.15,
+        });
+      }
+    }
+    return;
+  }
+
+  if (wave.type === "finalGlyph") {
+    // S5: X字グリフ配置。高速に大きく蛇行し、最終面らしい混成にする
+    const glyph = [
+      [-252, -40],
+      [-168, -120],
+      [-84, -200],
+      [0, -280],
+      [84, -200],
+      [168, -120],
+      [252, -40],
+      [-168, 40],
+      [-84, -40],
+      [0, -120],
+      [84, -40],
+      [168, 40],
+    ];
+    for (let i = 0; i < glyph.length; i++) {
+      const [dx, dy] = glyph[i];
+      const side = dx < 0 ? -1 : 1;
+      spawnEnemy(W / 2 + dx, -80 + dy, dx * 0.08 * def.enemySpeed, 168 * def.enemySpeed, side, 56, "small", def.smallSprite, null, {
+        moveKind: i % 3 === 0 ? "retreat" : "swoop",
+        moveAmp: 68 + (i % 4) * 8,
+        moveFreq: 3.3 + (i % 3) * 0.45,
+        movePhase: (i / glyph.length) * TAU,
+        moveTurnTime: 1.7,
+        retreatSpeed: 240,
+      });
+    }
+    spawnEnemy(W / 2, -380, 0, 104 * def.enemySpeed, 1, 260, "medium", def.mediumSprite, null, {
+      moveKind: "dashBrake",
+      moveAmp: 28,
+      moveFreq: 2.6,
+      movePhase: 0,
+      brakeTime: 1.25,
+      exitTime: 3.25,
+    });
     return;
   }
 
@@ -3006,7 +3181,7 @@ function spawnStageWave(wave) {
   }
 }
 
-function spawnEnemy(x, y, vx, vy, side, hp, size = "small", spriteKey = null, drop = null) {
+function spawnEnemy(x, y, vx, vy, side, hp, size = "small", spriteKey = null, drop = null, options = null) {
   const def = currentStage();
   const extraDef = EXTRA_ENEMY_DEFS[spriteKey];
   const isMedium = size === "medium";
@@ -3014,9 +3189,12 @@ function spawnEnemy(x, y, vx, vy, side, hp, size = "small", spriteKey = null, dr
   const isCarrier = size === "carrier";
   const isExtra = size === "extra";
   const scaledHp = Math.round(hp * def.enemyHp);
+  const routeMotion = options?.moveKind ? options : stageMotionOptions(activeStageWaveMotion, x, y, side, size);
   enemies.push({
     x,
     y,
+    baseX: x,
+    baseY: y,
     vx,
     vy,
     r: isExtra ? extraDef.r : isMidboss ? 64 : isCarrier ? 28 : isMedium ? 34 : 18,
@@ -3026,7 +3204,14 @@ function spawnEnemy(x, y, vx, vy, side, hp, size = "small", spriteKey = null, dr
     side,
     size,
     extraKey: extraDef ? spriteKey : null,
-    moveKind: extraDef ? extraDef.move : null,
+    moveKind: extraDef ? extraDef.move : routeMotion?.moveKind ?? null,
+    moveAmp: routeMotion?.moveAmp ?? 0,
+    moveFreq: routeMotion?.moveFreq ?? 0,
+    movePhase: routeMotion?.movePhase ?? 0,
+    moveTurnTime: routeMotion?.moveTurnTime ?? 1.6,
+    retreatSpeed: routeMotion?.retreatSpeed ?? 190,
+    brakeTime: routeMotion?.brakeTime ?? 1.05,
+    exitTime: routeMotion?.exitTime ?? 2.75,
     attackKind: extraDef ? extraDef.attack : null,
     spriteKey: spriteKey || (isMidboss ? def.midbossSprite : isMedium ? def.mediumSprite : def.smallSprite),
     drop,
@@ -3069,6 +3254,8 @@ function updateEntities(dt) {
       e.x += e.vx * dt + Math.sin(e.t * freq + e.y * 0.012) * drift * dt;
       e.y += e.vy * dt + Math.cos(e.t * (freq * 0.7)) * (e.moveKind === "walker" ? 18 : 10) * dt;
       if (e.moveKind === "node" || e.moveKind === "hive") e.vx *= 0.995;
+    } else if (e.moveKind) {
+      updateRouteEnemyMotion(e, dt);
     } else {
       e.x += e.vx * dt;
       e.y += Math.sin(e.t * (e.size === "medium" || e.size === "midboss" ? 2.4 : 5)) * (e.size === "midboss" ? 8 : e.size === "medium" ? 18 : 42) * dt + e.vy * dt;
@@ -3099,6 +3286,47 @@ function updateEntities(dt) {
   decayList(particles, dt);
   decayList(damageTexts, dt);
   cull();
+}
+
+function updateRouteEnemyMotion(e, dt) {
+  const amp = e.moveAmp || 42;
+  const freq = e.moveFreq || 3;
+  const phase = e.movePhase || 0;
+  if (e.moveKind === "zigzag") {
+    e.x += e.vx * dt + Math.sin(e.t * freq + phase) * amp * dt;
+    e.y += e.vy * dt;
+    return;
+  }
+  if (e.moveKind === "retreat") {
+    if (e.t < e.moveTurnTime) {
+      e.x += e.vx * dt + Math.sin(e.t * freq + phase) * amp * dt;
+      e.y += e.vy * dt;
+    } else {
+      e.x += (e.vx * 0.35 + Math.sin(e.t * (freq * 0.8) + phase) * amp * 0.45) * dt;
+      e.y -= e.retreatSpeed * dt;
+    }
+    return;
+  }
+  if (e.moveKind === "dashBrake") {
+    const speedScale = e.t < e.brakeTime ? 1 : e.t < e.exitTime ? 0.18 : 1.22;
+    const exitPush = e.t > e.exitTime ? (e.side || 1) * 54 : 0;
+    e.x += (e.vx + exitPush + Math.sin(e.t * freq + phase) * amp) * dt;
+    e.y += e.vy * speedScale * dt;
+    return;
+  }
+  if (e.moveKind === "swoop") {
+    e.x += (e.vx + Math.cos(e.t * freq + phase) * amp) * dt;
+    e.y += (e.vy + Math.sin(e.t * freq * 0.62 + phase) * amp * 0.38) * dt;
+    return;
+  }
+  if (e.moveKind === "orbit") {
+    const spin = e.t * freq * ((e.side || 1) < 0 ? -1 : 1) + phase;
+    e.x = e.baseX + e.vx * e.t + Math.cos(spin) * amp;
+    e.y = e.baseY + e.vy * e.t + Math.sin(spin) * amp * 0.48;
+    return;
+  }
+  e.x += e.vx * dt;
+  e.y += e.vy * dt;
 }
 
 function updateMissiles(dt) {
@@ -3320,7 +3548,7 @@ function cull() {
   removeWhere(playerBullets, (b) => b.y < -60 || b.x < -80 || b.x > W + 80);
   removeWhere(missiles, (m) => m.life <= 0 || m.y < -140 || m.x < -140 || m.x > W + 140 || m.y > H + 140);
   removeWhere(enemyBullets, (b) => b.y > H + 80 || b.y < -100 || b.x < -120 || b.x > W + 120);
-  removeWhere(enemies, (e) => e.x < -90 || e.x > W + 90 || e.hp <= 0);
+  removeWhere(enemies, (e) => e.x < -160 || e.x > W + 160 || e.y < -560 || e.y > H + 180 || e.hp <= 0);
   removeWhere(pickups, (p) => p.y > H + 40);
   removeWhere(explosions, (e) => e.life <= 0);
   removeWhere(hitSparks, (s) => s.life <= 0);
