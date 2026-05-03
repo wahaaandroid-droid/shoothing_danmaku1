@@ -24,7 +24,7 @@ const COMBO_HOLD_SECONDS = 3;
 const PLAYER_HITBOX_RADIUS = 0.5;
 const PLAYER_HITBOX_OFFSET_X = 4;
 const PLAYER_HITBOX_OFFSET_Y = -11;
-const BOSS_HP_MULTIPLIER = 1.35;
+const BOSS_HP_MULTIPLIER = 2;
 const MIDBOSS_HP_MULTIPLIER = 3;
 const BOSS_BULLET_SPEED_MULTIPLIER = 1.08;
 const BOSS_SHIFT_HP_RATIO = 0.66;
@@ -1740,24 +1740,26 @@ function updateBoss(dt) {
   const range = BOSS_BODY_MOVE_RANGE_SCALE;
 
   // ── ステージ別 BOSS 移動 ──────────────────────────────────
+  let targetX;
   if (def.no === 1) {
     // ゆっくり左右往復（チュートリアル的、読みやすい動き）
-    boss.x = W / 2 + Math.sin(moveTime * 0.9) * (enraged ? 118 : 76) * range + Math.sin(moveTime * 1.7) * (enraged ? 34 : 16) * range;
+    targetX = W / 2 + Math.sin(moveTime * 0.9) * (enraged ? 118 : 76) * range + Math.sin(moveTime * 1.7) * (enraged ? 34 : 16) * range;
   } else if (def.no === 2) {
     // 左右端に素早く張り付く動き（カーテンとの相乗効果）
-    boss.x = W / 2 + Math.sin(moveTime * 1.6) * 220 * range + Math.sin(moveTime * 3.1) * (enraged ? 52 : 22) * range;
+    targetX = W / 2 + Math.sin(moveTime * 1.6) * 220 * range + Math.sin(moveTime * 3.1) * (enraged ? 52 : 22) * range;
   } else if (def.no === 3) {
     // 円弧を描いて回り込む（自機狙い弾との組み合わせ）
-    boss.x = W / 2 + Math.cos(moveTime * 1.2) * 195 * range + Math.sin(moveTime * 2.5) * (enraged ? 62 : 28) * range;
+    targetX = W / 2 + Math.cos(moveTime * 1.2) * 195 * range + Math.sin(moveTime * 2.5) * (enraged ? 62 : 28) * range;
   } else if (def.no === 4) {
     // 不規則な大振り移動（変容弾との混乱演出）
-    boss.x = W / 2 + Math.sin(moveTime * 0.7) * 230 * range + Math.sin(moveTime * 2.9 + 1.2) * (enraged ? 82 : 46) * range;
+    targetX = W / 2 + Math.sin(moveTime * 0.7) * 230 * range + Math.sin(moveTime * 2.9 + 1.2) * (enraged ? 82 : 46) * range;
   } else {
     // S5: 広域・高速移動（全方位脅威）
-    boss.x = W / 2 + Math.sin(moveTime * 1.4) * 250 * range + Math.sin(moveTime * 3.8 + 0.8) * (enraged ? 92 : 54) * range;
+    targetX = W / 2 + Math.sin(moveTime * 1.4) * 250 * range + Math.sin(moveTime * 3.8 + 0.8) * (enraged ? 92 : 54) * range;
   }
   const radii = bossHitboxRadii(def);
-  boss.x = clamp(boss.x, radii.x + 16, W - radii.x - 16);
+  targetX = clamp(targetX, radii.x + 16, W - radii.x - 16);
+  boss.x += (targetX - boss.x) * Math.min(1, dt * (enraged ? 1.9 : shifted ? 1.65 : 1.45));
 
   const targetY = (enraged ? 204 : 224) + Math.sin(moveTime * 1.1) * (enraged ? 30 : 15) * range;
   boss.y += (targetY - boss.y) * Math.min(1, dt * (enraged ? 2.2 : shifted ? 1.9 : 1.65));
@@ -2129,16 +2131,18 @@ function bossPartAttack(part, def) {
   }
 
   if (part.attack === "beam") {
+    const warm = def.no === 4 ? 0.64 : 0.32;
+    const life = (boss.enraged ? 0.82 : 0.92) + (warm - 0.32);
     bossPartBeams.push({
       x: part.x,
       y: part.y,
       angle: aim + part.side * 0.03,
       length: 1500,
       width: boss.enraged ? 24 : boss.shifted ? 21 : 18,
-      warm: 0.32,
+      warm,
       age: 0,
-      life: boss.enraged ? 0.82 : 0.92,
-      max: boss.enraged ? 0.82 : 0.92,
+      life,
+      max: life,
       color: part.side === 0 ? "#ffe66d" : part.side > 0 ? "#62eaff" : "#ff4fcf",
     });
     return;
@@ -2266,16 +2270,18 @@ function bossBitAttack(bit, def) {
       return;
     }
     if (bit.attack === "beamline") {
+      const warm = def.no === 4 ? 0.72 : 0.42;
+      const life = (boss.enraged ? 0.68 : 0.76) + (warm - 0.42);
       bossPartBeams.push({
         x: bit.x,
         y: bit.y,
         angle: aim,
         length: 1500,
         width: boss.enraged ? 18 : boss.shifted ? 16 : 14,
-        warm: 0.42,
+        warm,
         age: 0,
-        life: boss.enraged ? 0.68 : 0.76,
-        max: boss.enraged ? 0.68 : 0.76,
+        life,
+        max: life,
         color: "#ffe66d",
       });
     }
