@@ -24,15 +24,19 @@ const COMBO_HOLD_SECONDS = 3;
 const PLAYER_HITBOX_RADIUS = 0.5;
 const PLAYER_HITBOX_OFFSET_X = 4;
 const PLAYER_HITBOX_OFFSET_Y = -11;
-const BOSS_HP_MULTIPLIER = 2;
+const BOSS_HP_MULTIPLIER = 1.35;
 const MIDBOSS_HP_MULTIPLIER = 3;
-const BOSS_BULLET_SPEED_MULTIPLIER = 1.14;
+const BOSS_BULLET_SPEED_MULTIPLIER = 1.08;
 const BOSS_SHIFT_HP_RATIO = 0.66;
 const BOSS_SHIFT_INTERVAL_MULTIPLIER = 0.9;
-const BOSS_SHIFT_BULLET_SPEED_MULTIPLIER = 1.08;
+const BOSS_SHIFT_BULLET_SPEED_MULTIPLIER = 1.04;
 const BOSS_ENRAGE_HP_RATIO = 0.33;
 const BOSS_ENRAGE_INTERVAL_MULTIPLIER = 0.62;
-const BOSS_ENRAGE_BULLET_SPEED_MULTIPLIER = 1.24;
+const BOSS_ENRAGE_BULLET_SPEED_MULTIPLIER = 1.16;
+const BOSS_BODY_MOVE_SPEED_SCALE = 0.52;
+const BOSS_BODY_MOVE_RANGE_SCALE = 0.72;
+const BOSS_HITBOX_WIDTH_RATIO = 0.86;
+const BOSS_HITBOX_HEIGHT_RATIO = 0.76;
 const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
 const pointSegmentDistance = (p, a, b) => {
   const dx = b.x - a.x;
@@ -217,6 +221,8 @@ const STAGE_5_WAVES = [
 ];
 
 const keys = new Set();
+const gamepadInput = { dx: 0, dy: 0, focus: false };
+let previousGamepadButtons = [];
 const stars = [];
 const playerBullets = [];
 const missiles = [];
@@ -227,6 +233,7 @@ const hitSparks = [];
 const pickups = [];
 const beams = [];
 const bossParts = [];
+const bossBits = [];
 const bossPartBeams = [];
 const shockwaves = [];
 const particles = [];
@@ -275,6 +282,10 @@ bossExplosionSheet.onload = () => render();
 const bossPartSheet = new Image();
 bossPartSheet.src = "assets/boss-parts.png";
 bossPartSheet.onload = () => render();
+
+const bossBitSheet = new Image();
+bossBitSheet.src = "assets/boss-bits.png";
+bossBitSheet.onload = () => render();
 
 const stageExtraEnemySheet = new Image();
 stageExtraEnemySheet.src = "assets/stage-extra-enemies.png";
@@ -763,6 +774,32 @@ const BOSS_PART_LOADOUTS = {
   ],
 };
 
+const BOSS_BIT_LOADOUTS = {
+  1: [
+    { relX: -158, relY: 6, sprite: 0, hp: 760, r: 27, w: 74, h: 62, path: "orbit", attack: "fan", interval: 1.36, side: -1 },
+    { relX: 158, relY: 6, sprite: 0, hp: 760, r: 27, w: 74, h: 62, path: "orbit", attack: "fan", interval: 1.36, side: 1 },
+  ],
+  2: [
+    { relX: -176, relY: 28, sprite: 1, hp: 880, r: 29, w: 78, h: 60, path: "sweep", attack: "lane", interval: 1.18, side: -1 },
+    { relX: 176, relY: 28, sprite: 1, hp: 880, r: 29, w: 78, h: 60, path: "sweep", attack: "lane", interval: 1.18, side: 1 },
+  ],
+  3: [
+    { relX: -150, relY: -24, sprite: 2, hp: 940, r: 30, w: 72, h: 72, path: "hunter", attack: "needle", interval: 1.08, side: -1 },
+    { relX: 150, relY: -24, sprite: 2, hp: 940, r: 30, w: 72, h: 72, path: "hunter", attack: "needle", interval: 1.08, side: 1 },
+  ],
+  4: [
+    { relX: -190, relY: 8, sprite: 3, hp: 1020, r: 32, w: 86, h: 70, path: "arc", attack: "split", interval: 1.12, side: -1 },
+    { relX: 190, relY: 8, sprite: 3, hp: 1020, r: 32, w: 86, h: 70, path: "arc", attack: "split", interval: 1.12, side: 1 },
+    { relX: 0, relY: -88, sprite: 2, hp: 1140, r: 30, w: 72, h: 72, path: "top", attack: "beamline", interval: 1.75, side: 0 },
+  ],
+  5: [
+    { relX: -224, relY: -18, sprite: 0, hp: 1180, r: 27, w: 74, h: 62, path: "orbit", attack: "fan", interval: 1.0, side: -1 },
+    { relX: 224, relY: -18, sprite: 1, hp: 1220, r: 29, w: 78, h: 60, path: "sweep", attack: "lane", interval: 0.96, side: 1 },
+    { relX: -118, relY: 72, sprite: 2, hp: 1260, r: 30, w: 72, h: 72, path: "hunter", attack: "needle", interval: 1.06, side: -1 },
+    { relX: 118, relY: 72, sprite: 3, hp: 1320, r: 32, w: 86, h: 70, path: "arc", attack: "split", interval: 1.14, side: 1 },
+  ],
+};
+
 const STAGES = [
   {
     no: 1,
@@ -924,6 +961,49 @@ function stageDuration() {
 
 function stageWaves() {
   return currentStage().waves || STAGE_1_WAVES;
+}
+
+function bossHitboxRadii(def = currentStage()) {
+  return {
+    x: (def.bossW * BOSS_HITBOX_WIDTH_RATIO) / 2,
+    y: (def.bossH * BOSS_HITBOX_HEIGHT_RATIO) / 2,
+  };
+}
+
+function circleHitsBoss(projectile, def = currentStage()) {
+  if (!boss.visible || boss.hp <= 0) return false;
+  const radii = bossHitboxRadii(def);
+  const rx = radii.x + (projectile.r || 0);
+  const ry = radii.y + (projectile.r || 0);
+  const dx = (projectile.x - boss.x) / rx;
+  const dy = (projectile.y - boss.y) / ry;
+  return dx * dx + dy * dy <= 1;
+}
+
+function beamHitsBoss(beam, def = currentStage()) {
+  if (!boss.visible || boss.hp <= 0) return false;
+  const radii = bossHitboxRadii(def);
+  return Math.abs(beam.x - boss.x) < radii.x + beam.w * 0.5 && beam.y > boss.y - radii.y;
+}
+
+function carveBossSafeGap(startIndex, width = boss.enraged ? 42 : boss.shifted ? 50 : 58) {
+  if (phase !== "boss" || startIndex >= enemyBullets.length) return;
+  const laneX = clamp(player.x, 58, W - 58);
+  const laneY = clamp(player.y - 120, H * 0.46, H * 0.78);
+  for (let i = enemyBullets.length - 1; i >= startIndex; i--) {
+    const b = enemyBullets[i];
+    if (!b || b.vy <= 24) continue;
+    const t = (laneY - b.y) / b.vy;
+    if (t < 0 || t > 2.7) continue;
+    const predictedX = b.x + b.vx * t;
+    if (Math.abs(predictedX - laneX) < width + b.r) enemyBullets.splice(i, 1);
+  }
+}
+
+function runBossAttack(fn, gapWidth) {
+  const start = enemyBullets.length;
+  fn();
+  carveBossSafeGap(start, gapWidth);
 }
 
 function hyperAttackMultiplier() {
@@ -1134,7 +1214,7 @@ function resetGame() {
   stageNo = 1;
   boss.x = W / 2;
   boss.y = -260;
-  boss.maxHp = currentStage().bossHp;
+  boss.maxHp = Math.round(currentStage().bossHp);
   boss.hp = boss.maxHp;
   boss.r = currentStage().bossR;
   boss.corePulse = 0;
@@ -1164,6 +1244,7 @@ function resetGame() {
   pickups.length = 0;
   beams.length = 0;
   bossParts.length = 0;
+  bossBits.length = 0;
   bossPartBeams.length = 0;
   shockwaves.length = 0;
   particles.length = 0;
@@ -1208,7 +1289,7 @@ function beginStage() {
   stageScroll = 0;
   boss.x = W / 2;
   boss.y = -260;
-  boss.maxHp = def.bossHp;
+  boss.maxHp = Math.round(def.bossHp);
   boss.hp = boss.maxHp;
   boss.r = def.bossR;
   boss.shifted = false;
@@ -1220,6 +1301,7 @@ function beginStage() {
   enemies.length = 0;
   missiles.length = 0;
   bossParts.length = 0;
+  bossBits.length = 0;
   bossPartBeams.length = 0;
   boss.visible = false;
   playBgm(def.stageBgm);
@@ -1258,13 +1340,14 @@ function beginBossPhase() {
   missiles.length = 0;
   boss.x = W / 2;
   boss.y = -230;
-  boss.maxHp = def.bossHp;
+  boss.maxHp = Math.round(def.bossHp);
   boss.hp = boss.maxHp;
   boss.r = def.bossR;
   boss.visible = true;
   boss.shifted = false;
   boss.enraged = false;
   initBossParts(def);
+  initBossBits(def);
   playBgm(def.bossBgm);
 }
 
@@ -1278,6 +1361,7 @@ function clearStage() {
   enemyBullets.length = 0;
   enemies.length = 0;
   bossParts.length = 0;
+  bossBits.length = 0;
   bossPartBeams.length = 0;
   playerBullets.length = 0;
   missiles.length = 0;
@@ -1295,6 +1379,7 @@ function beginStageClear() {
   playerBullets.length = 0;
   missiles.length = 0;
   bossParts.length = 0;
+  bossBits.length = 0;
   bossPartBeams.length = 0;
   boss.visible = false;
   addScore(250000 + stageNo * 50000);
@@ -1311,7 +1396,7 @@ function advanceStage() {
 
 function completeStageTransition() {
   stageNo = nextStageNo;
-  boss.maxHp = currentStage().bossHp;
+  boss.maxHp = Math.round(currentStage().bossHp);
   boss.shifted = false;
   boss.enraged = false;
   player.invuln = 2.2;
@@ -1334,6 +1419,7 @@ function beginCredits() {
   playerBullets.length = 0;
   missiles.length = 0;
   bossParts.length = 0;
+  bossBits.length = 0;
   bossPartBeams.length = 0;
   playBgm("allclear");
 }
@@ -1411,15 +1497,71 @@ canvas.addEventListener("pointercancel", () => {
   pointerSwipeTimer = 0;
 });
 
+function gamepadAxis(value) {
+  const deadzone = 0.18;
+  if (!Number.isFinite(value) || Math.abs(value) < deadzone) return 0;
+  return Math.sign(value) * ((Math.abs(value) - deadzone) / (1 - deadzone));
+}
+
+function gamepadButton(gp, index) {
+  return Boolean(gp?.buttons?.[index]?.pressed);
+}
+
+function gamepadButtonPressed(buttons, index) {
+  return Boolean(buttons[index] && !previousGamepadButtons[index]);
+}
+
+function pollGamepadControls() {
+  gamepadInput.dx = 0;
+  gamepadInput.dy = 0;
+  gamepadInput.focus = false;
+  if (!navigator.getGamepads) return;
+  const gp = Array.from(navigator.getGamepads()).find((pad) => pad?.connected);
+  if (!gp) {
+    previousGamepadButtons = [];
+    return;
+  }
+
+  const buttons = gp.buttons.map((button) => Boolean(button?.pressed));
+  const stickX = gamepadAxis(gp.axes[0] || 0);
+  const stickY = gamepadAxis(gp.axes[1] || 0);
+  const dpadX = (gamepadButton(gp, 15) ? 1 : 0) - (gamepadButton(gp, 14) ? 1 : 0);
+  const dpadY = (gamepadButton(gp, 13) ? 1 : 0) - (gamepadButton(gp, 12) ? 1 : 0);
+  gamepadInput.dx = dpadX || stickX;
+  gamepadInput.dy = dpadY || stickY;
+  gamepadInput.focus = gamepadButton(gp, 4) || gamepadButton(gp, 6);
+
+  const startPressed = gamepadButtonPressed(buttons, 0) || gamepadButtonPressed(buttons, 8) || gamepadButtonPressed(buttons, 9);
+  const bombPressed = gamepadButtonPressed(buttons, 1) || gamepadButtonPressed(buttons, 2) || gamepadButtonPressed(buttons, 3) || gamepadButtonPressed(buttons, 5) || gamepadButtonPressed(buttons, 7);
+  const pausePressed = gamepadButtonPressed(buttons, 9);
+  if (!running && startPressed) {
+    startGame();
+  } else if (running) {
+    if (pausePressed) paused = !paused;
+    if (!paused && bombPressed) useBombButton();
+  }
+  previousGamepadButtons = buttons;
+}
+
+function idleLoop() {
+  if (running) return;
+  pollGamepadControls();
+  updateWeaponLoopSe();
+  render();
+  requestAnimationFrame(idleLoop);
+}
+
 function loop(now) {
   const rawDt = (now - last) / 1000;
   updatePerfMode(rawDt);
   const dt = Math.min(0.033, rawDt);
   last = now;
+  pollGamepadControls();
   if (running && !paused) update(dt);
   else updateWeaponLoopSe();
   render();
   if (running) requestAnimationFrame(loop);
+  else requestAnimationFrame(idleLoop);
 }
 
 function updatePerfMode(rawDt) {
@@ -1483,7 +1625,7 @@ function update(dt) {
 }
 
 function updatePlayer(dt) {
-  player.focus = keys.has("ShiftLeft") || keys.has("ShiftRight");
+  player.focus = keys.has("ShiftLeft") || keys.has("ShiftRight") || gamepadInput.focus;
   pointerSwipeTimer = Math.max(0, pointerSwipeTimer - dt);
   player.laserActive = player.focus || pointerSwipeTimer > 0;
   let dx = 0;
@@ -1492,6 +1634,8 @@ function updatePlayer(dt) {
   if (keys.has("ArrowRight") || keys.has("KeyD")) dx += 1;
   if (keys.has("ArrowUp") || keys.has("KeyW")) dy -= 1;
   if (keys.has("ArrowDown") || keys.has("KeyS")) dy += 1;
+  dx += gamepadInput.dx;
+  dy += gamepadInput.dy;
 
   if (pointerActive) {
     player.x += pointerDeltaX;
@@ -1555,11 +1699,13 @@ function updateBossPhaseShift(def) {
     shake = Math.max(shake, 18);
     shockwaves.push({ x: boss.x, y: boss.y, life: 0.72, max: 0.72, radius: 12, color: "#62eaff" });
     shockwaves.push({ x: boss.x, y: boss.y, life: 1.05, max: 1.05, radius: 38, color: "#ffe66d" });
+    const start = enemyBullets.length;
     const count = 8 + def.no * 2;
     for (let i = 0; i < count; i++) {
       const a = (i / count) * TAU + time * 0.25;
       spawnBullet(boss.x, boss.y + 20, a, 112 + (i % 2) * 22, i % 2 ? "#62eaff" : "#ffe66d", 6, "ring");
     }
+    carveBossSafeGap(start, 58);
   }
   return boss.shifted;
 }
@@ -1575,11 +1721,13 @@ function updateBossEnrage(def) {
     shockwaves.push({ x: boss.x, y: boss.y, life: 0.9, max: 0.9, radius: 18, color: "#ff355e" });
     shockwaves.push({ x: boss.x, y: boss.y, life: 1.2, max: 1.2, radius: 46, color: "#ffe66d" });
 
+    const start = enemyBullets.length;
     const count = 15 + def.no * 2;
     for (let i = 0; i < count; i++) {
       const a = (i / count) * TAU + time * 0.55;
       spawnBullet(boss.x, boss.y + 24, a, 158 + (i % 3) * 32, i % 2 ? "#ff355e" : "#ffe66d", 5, i % 3 ? "needle" : "ring");
     }
+    carveBossSafeGap(start, 46);
   }
   return boss.enraged;
 }
@@ -1588,30 +1736,33 @@ function updateBoss(dt) {
   const def = currentStage();
   const shifted = updateBossPhaseShift(def);
   const enraged = updateBossEnrage(def);
-  const moveTime = time * (enraged ? 1.32 : shifted ? 1.12 : 1);
+  const moveTime = time * (enraged ? 1.2 : shifted ? 1.05 : 1) * BOSS_BODY_MOVE_SPEED_SCALE;
+  const range = BOSS_BODY_MOVE_RANGE_SCALE;
 
   // ── ステージ別 BOSS 移動 ──────────────────────────────────
   if (def.no === 1) {
     // ゆっくり左右往復（チュートリアル的、読みやすい動き）
-    boss.x = W / 2 + Math.sin(moveTime * 0.9) * (enraged ? 118 : 76) + Math.sin(moveTime * 1.7) * (enraged ? 34 : 16);
+    boss.x = W / 2 + Math.sin(moveTime * 0.9) * (enraged ? 118 : 76) * range + Math.sin(moveTime * 1.7) * (enraged ? 34 : 16) * range;
   } else if (def.no === 2) {
     // 左右端に素早く張り付く動き（カーテンとの相乗効果）
-    boss.x = W / 2 + Math.sin(moveTime * 1.6) * 220 + Math.sin(moveTime * 3.1) * (enraged ? 52 : 22);
+    boss.x = W / 2 + Math.sin(moveTime * 1.6) * 220 * range + Math.sin(moveTime * 3.1) * (enraged ? 52 : 22) * range;
   } else if (def.no === 3) {
     // 円弧を描いて回り込む（自機狙い弾との組み合わせ）
-    boss.x = W / 2 + Math.cos(moveTime * 1.2) * 195 + Math.sin(moveTime * 2.5) * (enraged ? 62 : 28);
+    boss.x = W / 2 + Math.cos(moveTime * 1.2) * 195 * range + Math.sin(moveTime * 2.5) * (enraged ? 62 : 28) * range;
   } else if (def.no === 4) {
     // 不規則な大振り移動（変容弾との混乱演出）
-    boss.x = W / 2 + Math.sin(moveTime * 0.7) * 230 + Math.sin(moveTime * 2.9 + 1.2) * (enraged ? 82 : 46);
+    boss.x = W / 2 + Math.sin(moveTime * 0.7) * 230 * range + Math.sin(moveTime * 2.9 + 1.2) * (enraged ? 82 : 46) * range;
   } else {
     // S5: 広域・高速移動（全方位脅威）
-    boss.x = W / 2 + Math.sin(moveTime * 1.4) * 250 + Math.sin(moveTime * 3.8 + 0.8) * (enraged ? 92 : 54);
+    boss.x = W / 2 + Math.sin(moveTime * 1.4) * 250 * range + Math.sin(moveTime * 3.8 + 0.8) * (enraged ? 92 : 54) * range;
   }
-  boss.x = clamp(boss.x, def.bossR + 24, W - def.bossR - 24);
+  const radii = bossHitboxRadii(def);
+  boss.x = clamp(boss.x, radii.x + 16, W - radii.x - 16);
 
-  const targetY = (enraged ? 204 : 224) + Math.sin(moveTime * 1.1) * (enraged ? 30 : 15);
-  boss.y += (targetY - boss.y) * Math.min(1, dt * (enraged ? 3.7 : shifted ? 3 : 2.5));
+  const targetY = (enraged ? 204 : 224) + Math.sin(moveTime * 1.1) * (enraged ? 30 : 15) * range;
+  boss.y += (targetY - boss.y) * Math.min(1, dt * (enraged ? 2.2 : shifted ? 1.9 : 1.65));
   updateBossParts(dt, def);
+  updateBossBits(dt, def);
 
   // ── ステージ別 弾幕パターンセット ───────────────────────
   const interval = def.bossInterval * (enraged ? BOSS_ENRAGE_INTERVAL_MULTIPLIER : shifted ? BOSS_SHIFT_INTERVAL_MULTIPLIER : 1);
@@ -1619,15 +1770,20 @@ function updateBoss(dt) {
     bulletClock = 0;
 
     if (enraged) {
+      const start = enemyBullets.length;
       bossEnrageAttack(def.no);
+      carveBossSafeGap(start);
       return;
     }
 
     if (shifted) {
+      const start = enemyBullets.length;
       bossShiftAttack(def.no);
+      carveBossSafeGap(start);
       return;
     }
 
+    const start = enemyBullets.length;
     if (def.no === 1) {
       // S1「幾何学」: 美しい秩序、隙間が見えるパターン
       const p = Math.floor((bossPhaseClock / 6.2) % 4);
@@ -1672,6 +1828,7 @@ function updateBoss(dt) {
       if (p === 5) s5OmniBlast();
       if (p === 6) s5DarkCurtain();
     }
+    carveBossSafeGap(start);
   }
 }
 
@@ -1996,6 +2153,172 @@ function bossPartAttack(part, def) {
       if (boss.shifted || boss.enraged) spawnBullet(part.x, part.y, a + Math.PI / count, 180 * rank, "#ff355e", 5, "needle");
     }
   }
+}
+
+function initBossBits(def) {
+  bossBits.length = 0;
+  const loadout = BOSS_BIT_LOADOUTS[def.no] || [];
+  loadout.forEach((bit, index) => {
+    const phaseOffset = (index / Math.max(1, loadout.length)) * TAU + rand(0, 0.4);
+    const home = bossBitHome({ ...bit, phaseOffset, t: 0 });
+    const maxHp = Math.round(bit.hp * (1 + def.no * 0.05));
+    bossBits.push({
+      ...bit,
+      x: home.x,
+      y: home.y,
+      hp: maxHp,
+      maxHp,
+      fireClock: rand(0, bit.interval * 0.7),
+      t: 0,
+      phaseOffset,
+      hitFlash: 0,
+      index,
+    });
+  });
+}
+
+function bossBitHome(bit) {
+  const t = time + (bit.phaseOffset || 0);
+  const side = bit.side || 1;
+  if (bit.path === "sweep") {
+    return {
+      x: clamp(boss.x + bit.relX + Math.sin(t * 2.35) * 96 * side, 46, W - 46),
+      y: boss.y + bit.relY + Math.cos(t * 2.1) * 24,
+    };
+  }
+  if (bit.path === "hunter") {
+    return {
+      x: clamp(boss.x + bit.relX + Math.sin(t * 2.9) * 86, 46, W - 46),
+      y: boss.y + bit.relY + Math.cos(t * 2.5) * 38,
+    };
+  }
+  if (bit.path === "arc") {
+    return {
+      x: clamp(boss.x + bit.relX + Math.cos(t * 2.1) * 62 * side, 46, W - 46),
+      y: boss.y + bit.relY + Math.sin(t * 2.8) * 32,
+    };
+  }
+  if (bit.path === "top") {
+    return {
+      x: clamp(boss.x + Math.sin(t * 2.2) * 170, 46, W - 46),
+      y: boss.y + bit.relY + Math.cos(t * 2.4) * 22,
+    };
+  }
+  return {
+    x: clamp(boss.x + bit.relX + Math.cos(t * 2.35) * 38 * side, 46, W - 46),
+    y: boss.y + bit.relY + Math.sin(t * 2.1) * 26,
+  };
+}
+
+function updateBossBits(dt, def) {
+  for (const bit of bossBits) {
+    if (!bit || bit.dead || bit.hp <= 0) continue;
+    bit.t += dt;
+    bit.hitFlash = Math.max(0, bit.hitFlash - dt * 8);
+    const home = bossBitHome(bit);
+    bit.x += (home.x - bit.x) * Math.min(1, dt * 7.2);
+    bit.y += (home.y - bit.y) * Math.min(1, dt * 7.2);
+
+    const hitbox = playerHitbox();
+    if (player.invuln <= 0 && dist2(bit, hitbox) < (bit.r + hitbox.r + 2) ** 2) hitPlayer();
+
+    const phaseBoost = boss.enraged ? 0.74 : boss.shifted ? 0.86 : 1;
+    bit.fireClock += dt;
+    if (bit.fireClock > bit.interval * phaseBoost) {
+      bit.fireClock = 0;
+      bossBitAttack(bit, def);
+    }
+  }
+}
+
+function bossBitAttack(bit, def) {
+  runBossAttack(() => {
+    const aim = Math.atan2(player.y - bit.y, player.x - bit.x);
+    const rank = boss.enraged ? 1.04 : boss.shifted ? 0.98 : 0.92;
+    if (bit.attack === "fan") {
+      for (let i = -1; i <= 1; i++) {
+        spawnBullet(bit.x, bit.y, aim + i * 0.16 + bit.side * 0.035, (150 + Math.abs(i) * 26) * rank, bit.side > 0 ? "#62eaff" : "#ffe66d", 5, "needle");
+      }
+      spawnBullet(bit.x, bit.y, time * 2.4 + bit.side, 86 * rank, "#ad5cff", 7, "orb");
+      return;
+    }
+    if (bit.attack === "lane") {
+      const lean = Math.sin(time * 2.2 + bit.phaseOffset) * 0.14;
+      for (let i = -1; i <= 1; i++) {
+        spawnBullet(bit.x + i * 18, bit.y, Math.PI / 2 + lean + i * 0.055, (132 + Math.abs(i) * 24) * rank, i === 0 ? "#ffe66d" : "#62eaff", 6, "ring");
+      }
+      return;
+    }
+    if (bit.attack === "needle") {
+      for (let i = -2; i <= 2; i++) {
+        spawnBullet(bit.x, bit.y, aim + i * 0.082, (172 + Math.abs(i) * 18) * rank, "#ff355e", 5, "needle");
+      }
+      return;
+    }
+    if (bit.attack === "split") {
+      const count = def.no >= 5 ? 8 : 6;
+      const base = time * 1.2 + bit.side;
+      for (let i = 0; i < count; i++) {
+        if (i === Math.floor(count / 2)) continue;
+        const a = base + (i / count) * TAU;
+        spawnBullet(bit.x, bit.y, a, (96 + (i % 3) * 28) * rank, i % 2 ? "#ff8642" : "#ad5cff", 6, i % 2 ? "wave" : "star");
+      }
+      return;
+    }
+    if (bit.attack === "beamline") {
+      bossPartBeams.push({
+        x: bit.x,
+        y: bit.y,
+        angle: aim,
+        length: 1500,
+        width: boss.enraged ? 18 : boss.shifted ? 16 : 14,
+        warm: 0.42,
+        age: 0,
+        life: boss.enraged ? 0.68 : 0.76,
+        max: boss.enraged ? 0.68 : 0.76,
+        color: "#ffe66d",
+      });
+    }
+  }, boss.enraged ? 38 : boss.shifted ? 46 : 54);
+}
+
+function damageBossBit(bit, amount) {
+  if (!bit || bit.dead) return;
+  bit.hp = Math.max(0, bit.hp - amount);
+  bit.hitFlash = 1;
+  addScore(amount * 16);
+  addComboHits(1);
+  addHyperGauge(0.66);
+  if (Math.random() < 0.3) spawnHitSpark(bit.x + rand(-bit.r, bit.r), bit.y + rand(-bit.r, bit.r), "#ffe66d", 0.8);
+  if (bit.hp <= 0) killBossBit(bit);
+}
+
+function killBossBit(bit) {
+  if (bit.dead) return;
+  bit.dead = true;
+  addScore(38000 + currentStage().no * 5200);
+  addComboHits(14);
+  massiveExplosion(bit.x, bit.y, 0.92);
+  playSfx("explode", 0.32);
+  scatterPickups(bit.x, bit.y, "hyperCharge", 1, { speedMultiplier: 0.78, magnetDelay: 0.32 });
+  shockwaves.push({ x: bit.x, y: bit.y, life: 0.64, max: 0.64, radius: 12, color: "#ffe66d" });
+}
+
+function hitBossBitByCircle(projectile, damage, sparkColor = "#8df8ff", sparkScale = 0.85) {
+  let best = null;
+  let bestD = Infinity;
+  for (const bit of bossBits) {
+    if (!bit || bit.dead || bit.hp <= 0) continue;
+    const d = dist2(projectile, bit);
+    if (d < (bit.r + projectile.r) ** 2 && d < bestD) {
+      best = bit;
+      bestD = d;
+    }
+  }
+  if (!best) return false;
+  spawnHitSpark(projectile.x, projectile.y, sparkColor, sparkScale);
+  damageBossBit(best, damage);
+  return true;
 }
 
 function damageBossPart(part, amount) {
@@ -3451,6 +3774,14 @@ function findMissileTarget(m) {
         best = part;
       }
     }
+    for (const bit of bossBits) {
+      if (!bit || bit.dead || bit.hp <= 0) continue;
+      const d = dist2(m, bit);
+      if (d < bestD) {
+        bestD = d;
+        best = bit;
+      }
+    }
   }
   if (phase === "boss" && boss.visible && boss.hp > 0) {
     const d = dist2(m, boss);
@@ -3632,6 +3963,7 @@ function cull() {
   removeWhere(beams, (b) => b.life <= 0);
   removeWhere(bossPartBeams, (b) => b.life <= 0);
   removeWhere(bossParts, (p) => p.dead);
+  removeWhere(bossBits, (b) => b.dead);
   removeWhere(shockwaves, (s) => s.life <= 0);
   removeWhere(particles, (p) => p.life <= 0);
   removeWhere(damageTexts, (d) => d.life <= 0);
@@ -3661,8 +3993,15 @@ function collide() {
           if (Math.random() < 0.18) spawnHitSpark(beam.x + rand(-14, 14), part.y, "#bffcff", 0.62);
         }
       }
+      for (const bit of bossBits) {
+        if (!bit || bit.dead || bit.hp <= 0) continue;
+        if (Math.abs(beam.x - bit.x) < bit.r + beam.w * 0.5 && bit.y < beam.y + 20) {
+          damageBossBit(bit, beam.damage * 0.9);
+          if (Math.random() < 0.18) spawnHitSpark(beam.x + rand(-14, 14), bit.y, "#ffe66d", 0.58);
+        }
+      }
     }
-    if (phase === "boss" && boss.visible && Math.abs(beam.x - boss.x) < boss.r * 0.9 && boss.y < beam.y) {
+    if (phase === "boss" && beamHitsBoss(beam)) {
       damageBoss(beam.damage);
       addComboHits(1);
       addHyperGauge(0.62);
@@ -3688,7 +4027,12 @@ function collide() {
       playSfx("hit", 0.16);
       continue;
     }
-    if (phase === "boss" && boss.visible && dist2(b, boss) < (boss.r + b.r) ** 2) {
+    if (phase === "boss" && hitBossBitByCircle(b, b.damage, "#8df8ff", 0.85)) {
+      playerBullets.splice(i, 1);
+      playSfx("hit", 0.16);
+      continue;
+    }
+    if (phase === "boss" && circleHitsBoss(b)) {
       playerBullets.splice(i, 1);
       spawnHitSpark(b.x, b.y, "#8df8ff", 0.85);
       playSfx("hit", 0.16);
@@ -3720,7 +4064,12 @@ function collide() {
       playSfx("missilehit", 0.17);
       continue;
     }
-    if (phase === "boss" && boss.visible && dist2(m, boss) < (boss.r + m.r) ** 2) {
+    if (phase === "boss" && hitBossBitByCircle(m, m.damage, "#ffad45", 1.15)) {
+      missiles.splice(i, 1);
+      playSfx("missilehit", 0.17);
+      continue;
+    }
+    if (phase === "boss" && circleHitsBoss(m)) {
       missiles.splice(i, 1);
       spawnHitSpark(m.x, m.y, "#ffad45", 1.25);
       playSfx("missilehit", 0.18);
@@ -4040,6 +4389,7 @@ function render() {
   if (currentStage().no === 1) drawStructures();
   if ((phase === "boss" || phase === "bossDeath") && boss.visible) drawBoss();
   if (phase === "boss") drawBossParts();
+  if (phase === "boss") drawBossBits();
   drawEnemies();
   drawPickups();
   drawPlayerBullets();
@@ -4429,6 +4779,53 @@ function drawBossPartFallbacks() {
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.roundRect(-part.w / 2, -part.h / 2, part.w, part.h, 8);
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
+function drawBossBits() {
+  if (!bossBitSheet.complete || !bossBitSheet.naturalWidth) {
+    drawBossBitFallbacks();
+    return;
+  }
+  const cols = 2;
+  const rows = 2;
+  const cellW = bossBitSheet.naturalWidth / cols;
+  const cellH = bossBitSheet.naturalHeight / rows;
+  for (const bit of bossBits) {
+    if (!bit || bit.dead || bit.hp <= 0) continue;
+    const col = bit.sprite % cols;
+    const row = Math.floor(bit.sprite / cols);
+    ctx.save();
+    ctx.translate(bit.x, bit.y);
+    ctx.rotate(Math.sin(time * 2.4 + bit.phaseOffset) * 0.08);
+    ctx.shadowColor = bit.hitFlash > 0 ? "#fff2a8" : bit.attack === "beamline" ? "#ffe66d" : bit.side > 0 ? "#62eaff" : "#ff4fcf";
+    ctx.shadowBlur = isLiteRender() ? 8 : 24;
+    if (bit.hitFlash > 0) ctx.globalAlpha = 0.68 + Math.sin(time * 80) * 0.18;
+    ctx.drawImage(bossBitSheet, col * cellW, row * cellH, cellW, cellH, -bit.w / 2, -bit.h / 2, bit.w, bit.h);
+    ctx.restore();
+
+    ctx.save();
+    const barW = bit.w * 0.68;
+    drawBar(bit.x - barW / 2, bit.y + bit.h * 0.48, barW, 5, bit.hp / bit.maxHp, "#ff713d", "#ffe66d");
+    ctx.restore();
+  }
+}
+
+function drawBossBitFallbacks() {
+  for (const bit of bossBits) {
+    if (!bit || bit.dead || bit.hp <= 0) continue;
+    ctx.save();
+    ctx.translate(bit.x, bit.y);
+    ctx.shadowColor = "#ffe66d";
+    ctx.shadowBlur = isLiteRender() ? 6 : 18;
+    ctx.fillStyle = bit.hitFlash > 0 ? "#fff2a8" : "#302a48";
+    ctx.strokeStyle = "#ffe66d";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, bit.w * 0.45, bit.h * 0.42, 0, 0, TAU);
     ctx.fill();
     ctx.stroke();
     ctx.restore();
@@ -5078,6 +5475,7 @@ function heartText(lives) {
 
 initStars();
 render();
+requestAnimationFrame(idleLoop);
 
 if (new URLSearchParams(location.search).has("demo")) {
   const params = new URLSearchParams(location.search);
@@ -5085,7 +5483,7 @@ if (new URLSearchParams(location.search).has("demo")) {
   const requestedStage = Number(params.get("stage"));
   if (Number.isInteger(requestedStage) && requestedStage >= 1 && requestedStage <= STAGES.length) {
     stageNo = requestedStage;
-    boss.maxHp = currentStage().bossHp;
+    boss.maxHp = Math.round(currentStage().bossHp);
     boss.hp = boss.maxHp;
     boss.r = currentStage().bossR;
     boss.shifted = false;
