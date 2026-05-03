@@ -1365,6 +1365,7 @@ function clearStage() {
   bossPartBeams.length = 0;
   playerBullets.length = 0;
   missiles.length = 0;
+  prepareBossRewardPickups();
   player.invuln = Math.max(player.invuln, 8);
   addScore(100000);
   fadeOutBgm(6.6);
@@ -1618,7 +1619,7 @@ function update(dt) {
   if (phase === "credits") updateCredits(dt);
   if (phase === "stage" || phase === "boss") updateSpawns(dt);
   updateEntities(dt);
-  if (phase !== "bossDeath" && phase !== "gameover" && phase !== "credits" && phase !== "stageTransition") collide();
+  if (phase !== "gameover" && phase !== "credits" && phase !== "stageTransition") collide();
   if (phase === "gameover" && gameOverClock > 2.8) showGameOverOverlay();
   if (phase === "clear" && phaseTimer > 4.4) advanceStage();
   updateWeaponLoopSe();
@@ -3675,7 +3676,7 @@ function updateEntities(dt) {
   }
   for (const p of pickups) {
     p.magnetDelay = Math.max(0, (p.magnetDelay || 0) - dt);
-    if (p.magnetDelay <= 0 && (player.laserActive || p.y > H * 0.62)) {
+    if (p.magnetDelay <= 0 && shouldMagnetPickup(p)) {
       const a = Math.atan2(player.y - p.y, player.x - p.x);
       p.vx = (p.vx || 0) * 0.88 + Math.cos(a) * 320 * 0.12;
       p.vy = p.vy * 0.88 + Math.sin(a) * 320 * 0.12;
@@ -3692,6 +3693,20 @@ function updateEntities(dt) {
   decayList(particles, dt);
   decayList(damageTexts, dt);
   cull();
+}
+
+function shouldMagnetPickup(p) {
+  return player.laserActive || p.y > H * 0.62 || p.bossReward || phase === "clear" || phase === "bossDeath";
+}
+
+function prepareBossRewardPickups() {
+  for (const p of pickups) {
+    if (p.type !== "hyper" && p.type !== "hyperCharge") continue;
+    p.bossReward = true;
+    p.magnetDelay = 0;
+    p.vx = (p.vx || 0) * 0.25;
+    p.vy = Math.min(p.vy || 0, 80);
+  }
 }
 
 function updateRouteEnemyMotion(e, dt) {
@@ -3963,7 +3978,7 @@ function cull() {
   removeWhere(missiles, (m) => m.life <= 0 || m.y < -140 || m.x < -140 || m.x > W + 140 || m.y > H + 140);
   removeWhere(enemyBullets, (b) => b.y > H + 80 || b.y < -100 || b.x < -120 || b.x > W + 120);
   removeWhere(enemies, (e) => e.x < -160 || e.x > W + 160 || e.y < -560 || e.y > H + 180 || e.hp <= 0);
-  removeWhere(pickups, (p) => p.y > H + 40);
+  removeWhere(pickups, (p) => p.y > H + 40 && !(p.bossReward && (phase === "bossDeath" || phase === "clear")));
   removeWhere(explosions, (e) => e.life <= 0);
   removeWhere(hitSparks, (s) => s.life <= 0);
   removeWhere(beams, (b) => b.life <= 0);
