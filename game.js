@@ -21,8 +21,9 @@ const HYPER_STOCK_MAX = 5;
 const HYPER_ITEM_DROP_Y = 130;
 const HYPER_DURATION = 12;
 const COMBO_HOLD_SECONDS = 3;
-const PLAYER_HITBOX_OFFSET_X = 5;
-const PLAYER_HITBOX_OFFSET_Y = -6;
+const PLAYER_HITBOX_RADIUS = 0.5;
+const PLAYER_HITBOX_OFFSET_X = 4;
+const PLAYER_HITBOX_OFFSET_Y = -11;
 const BOSS_HP_MULTIPLIER = 2;
 const MIDBOSS_HP_MULTIPLIER = 3;
 const BOSS_BULLET_SPEED_MULTIPLIER = 1.14;
@@ -52,7 +53,7 @@ const dist2 = (a, b) => {
 const playerHitbox = () => ({
   x: player.x + PLAYER_HITBOX_OFFSET_X,
   y: player.y + PLAYER_HITBOX_OFFSET_Y,
-  r: player.r,
+  r: PLAYER_HITBOX_RADIUS,
 });
 
 let running = false;
@@ -879,7 +880,7 @@ const STAGES = [
 const player = {
   x: W / 2,
   y: H - 120,
-  r: 6,
+  r: PLAYER_HITBOX_RADIUS,
   lives: PLAYER_START_LIVES,
   bombs: 2,
   power: 5,
